@@ -40,6 +40,11 @@ const envSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   OTEL_METRICS_PORT: z.coerce.number().int().positive().default(9090),
 
+  // AI
+  ANTHROPIC_API_KEY: z.string().min(1),
+  AI_MONTHLY_TOKEN_BUDGET: z.coerce.number().int().min(0).default(0), // 0 = unlimited
+  AI_DEFAULT_MAX_TOKENS: z.coerce.number().int().min(1).max(8192).default(1024),
+
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   LOG_PRETTY: z

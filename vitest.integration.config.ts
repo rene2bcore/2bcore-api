@@ -30,6 +30,7 @@ export default defineConfig({
       RATE_LIMIT_AUTH_MAX: '1000',
       RATE_LIMIT_GLOBAL_WINDOW_MS: '60000',
       RATE_LIMIT_AUTH_WINDOW_MS: '900000',
+      ANTHROPIC_API_KEY: 'sk-ant-test-integration',
     },
   },
   resolve: {

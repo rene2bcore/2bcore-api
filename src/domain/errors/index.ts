@@ -74,3 +74,15 @@ export class ApiKeyRevokedError extends UnauthorizedError {
     super('API key has been revoked', ERROR_CODES.API_KEY_REVOKED);
   }
 }
+
+export class AiBudgetExceededError extends DomainError {
+  constructor() {
+    super('Monthly AI token budget exceeded', ERROR_CODES.AI_BUDGET_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
+  }
+}
+
+export class AiProviderError extends DomainError {
+  constructor(message = 'AI provider error') {
+    super(message, ERROR_CODES.AI_PROVIDER_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}

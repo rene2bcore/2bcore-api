@@ -17,6 +17,7 @@ export default defineConfig({
       JWT_ISSUER: '2bcore-api-test',
       JWT_AUDIENCE: '2bcore-clients-test',
       CORS_ALLOWED_ORIGINS: 'http://localhost:3001',
+      ANTHROPIC_API_KEY: 'sk-ant-test-unit',
     },
     coverage: {
       provider: 'v8',

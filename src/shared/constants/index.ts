@@ -39,7 +39,26 @@ export const ERROR_CODES = {
   FORBIDDEN: 'AUTHZ_001',
   // Validation
   VALIDATION_ERROR: 'VAL_001',
+  // AI
+  AI_BUDGET_EXCEEDED: 'AI_001',
+  AI_PROVIDER_ERROR: 'AI_002',
   // General
   NOT_FOUND: 'GEN_001',
   INTERNAL_ERROR: 'GEN_500',
 } as const;
+
+// Model tier → canonical model ID
+export const MODEL_TIERS = {
+  fast: 'claude-haiku-4-5-20251001',
+  standard: 'claude-sonnet-4-6',
+  powerful: 'claude-opus-4-6',
+} as const;
+
+export type ModelTier = keyof typeof MODEL_TIERS;
+
+// Pricing in USD per 1 million tokens
+export const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
+  'claude-opus-4-6': { input: 15.00, output: 75.00 },
+};

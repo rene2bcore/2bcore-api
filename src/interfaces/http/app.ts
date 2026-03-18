@@ -16,12 +16,15 @@ import { rateLimitPlugin } from '../../infrastructure/http/plugins/rateLimit.plu
 import { authRoutes } from '../../infrastructure/http/routes/auth.routes.js';
 import { keysRoutes } from '../../infrastructure/http/routes/keys.routes.js';
 import { healthRoutes } from '../../infrastructure/http/routes/health.routes.js';
+import { aiRoutes } from '../../infrastructure/http/routes/ai.routes.js';
 
 // Infrastructure
 import { getPrismaClient } from '../../infrastructure/db/prisma.js';
 import { getRedisClient } from '../../infrastructure/redis/RedisClient.js';
 import { TokenBlacklist } from '../../infrastructure/redis/tokenBlacklist.js';
 import { RefreshTokenStore } from '../../infrastructure/redis/refreshTokenStore.js';
+import { TokenBudgetStore } from '../../infrastructure/redis/tokenBudgetStore.js';
+import { AnthropicClient, type IAnthropicClient } from '../../infrastructure/ai/AnthropicClient.js';
 
 // Repositories
 import { PrismaUserRepository } from '../../infrastructure/db/repositories/user.repository.js';
@@ -30,12 +33,15 @@ import { PrismaAuditLogRepository } from '../../infrastructure/db/repositories/a
 
 // Services & Use Cases
 import { AuthService } from '../../application/services/AuthService.js';
+import { ModelRouter } from '../../application/services/ModelRouter.js';
+import { CostTracker } from '../../application/services/CostTracker.js';
 import { LoginUseCase } from '../../application/use-cases/auth/login.js';
 import { RefreshTokenUseCase } from '../../application/use-cases/auth/refresh.js';
 import { LogoutUseCase } from '../../application/use-cases/auth/logout.js';
 import { CreateApiKeyUseCase } from '../../application/use-cases/keys/createApiKey.js';
 import { ListApiKeysUseCase } from '../../application/use-cases/keys/listApiKeys.js';
 import { RevokeApiKeyUseCase } from '../../application/use-cases/keys/revokeApiKey.js';
+import { ChatUseCase } from '../../application/use-cases/ai/chat.js';
 
 // Error types
 import { DomainError } from '../../domain/errors/index.js';
@@ -43,7 +49,11 @@ import { ZodError } from 'zod';
 import { HTTP_STATUS } from '../../shared/constants/index.js';
 import type { FastifyError } from 'fastify';
 
-export async function buildApp() {
+export interface AppOverrides {
+  anthropicClient?: IAnthropicClient;
+}
+
+export async function buildApp(overrides: AppOverrides = {}) {
   const fastify = Fastify({
     logger: false, // Pino logger configured separately
     genReqId: () => uuidv4(),
@@ -107,6 +117,8 @@ export async function buildApp() {
   const redis = getRedisClient();
   const tokenBlacklist = new TokenBlacklist(redis);
   const refreshTokenStore = new RefreshTokenStore(redis);
+  const tokenBudgetStore = new TokenBudgetStore(redis);
+  const anthropicClient = overrides.anthropicClient ?? new AnthropicClient(env.ANTHROPIC_API_KEY);
 
   // ── Rate limiting ──────────────────────────────────────────────────
   await fastify.register(rateLimitPlugin, { redis });
@@ -118,6 +130,8 @@ export async function buildApp() {
 
   // ── Services ───────────────────────────────────────────────────────
   const authService = new AuthService(tokenBlacklist, refreshTokenStore);
+  const modelRouter = new ModelRouter();
+  const costTracker = new CostTracker(tokenBudgetStore, env.AI_MONTHLY_TOKEN_BUDGET);
 
   // ── Auth plugin ────────────────────────────────────────────────────
   await fastify.register(authPlugin, { authService, apiKeyRepo });
@@ -129,6 +143,7 @@ export async function buildApp() {
   const createApiKeyUseCase = new CreateApiKeyUseCase(apiKeyRepo, auditRepo);
   const listApiKeysUseCase = new ListApiKeysUseCase(apiKeyRepo);
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
+  const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo);
 
   // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -191,6 +206,11 @@ export async function buildApp() {
     createApiKeyUseCase,
     listApiKeysUseCase,
     revokeApiKeyUseCase,
+  });
+
+  await fastify.register(aiRoutes, {
+    prefix: `/${env.API_VERSION}/ai`,
+    chatUseCase,
   });
 
   return fastify;

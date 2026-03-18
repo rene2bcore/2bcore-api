@@ -1,14 +1,14 @@
-import { buildApp } from '../../../src/interfaces/http/app.js';
+import { buildApp, type AppOverrides } from '../../../src/interfaces/http/app.js';
 import { connectDB } from '../../../src/infrastructure/db/prisma.js';
 import { connectRedis } from '../../../src/infrastructure/redis/RedisClient.js';
 import type { FastifyInstance } from 'fastify';
 
 export type TestApp = FastifyInstance;
 
-export async function createTestApp(): Promise<TestApp> {
+export async function createTestApp(overrides?: AppOverrides): Promise<TestApp> {
   await connectDB();
   await connectRedis();
-  const app = await buildApp();
+  const app = await buildApp(overrides);
   await app.ready();
   return app;
 }

@@ -7,7 +7,8 @@ export type AuditAction =
   | 'PASSWORD_CHANGED'
   | 'RESOURCE_CREATED'
   | 'RESOURCE_UPDATED'
-  | 'RESOURCE_DELETED';
+  | 'RESOURCE_DELETED'
+  | 'AI_CHAT_REQUEST';
 
 export interface AuditLog {
   id: string;
