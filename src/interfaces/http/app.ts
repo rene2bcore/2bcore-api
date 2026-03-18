@@ -130,24 +130,7 @@ export async function buildApp() {
   const listApiKeysUseCase = new ListApiKeysUseCase(apiKeyRepo);
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
 
-  // ── Routes ─────────────────────────────────────────────────────────
-  await fastify.register(healthRoutes);
-
-  await fastify.register(authRoutes, {
-    prefix: `/${env.API_VERSION}/auth`,
-    loginUseCase,
-    refreshUseCase,
-    logoutUseCase,
-  });
-
-  await fastify.register(keysRoutes, {
-    prefix: `/${env.API_VERSION}/keys`,
-    createApiKeyUseCase,
-    listApiKeysUseCase,
-    revokeApiKeyUseCase,
-  });
-
-  // ── Global error handler ───────────────────────────────────────────
+  // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
     const correlationId = request.headers[CORRELATION_ID_HEADER];
 
@@ -183,7 +166,7 @@ export async function buildApp() {
     });
   });
 
-  // ── 404 handler ────────────────────────────────────────────────────
+  // ── 404 handler (must be set BEFORE route registrations) ───────────
   fastify.setNotFoundHandler((request, reply) => {
     return reply.status(HTTP_STATUS.NOT_FOUND).send({
       statusCode: HTTP_STATUS.NOT_FOUND,
@@ -191,6 +174,23 @@ export async function buildApp() {
       code: 'GEN_001',
       message: `Route ${request.method} ${request.url} not found`,
     });
+  });
+
+  // ── Routes ─────────────────────────────────────────────────────────
+  await fastify.register(healthRoutes);
+
+  await fastify.register(authRoutes, {
+    prefix: `/${env.API_VERSION}/auth`,
+    loginUseCase,
+    refreshUseCase,
+    logoutUseCase,
+  });
+
+  await fastify.register(keysRoutes, {
+    prefix: `/${env.API_VERSION}/keys`,
+    createApiKeyUseCase,
+    listApiKeysUseCase,
+    revokeApiKeyUseCase,
   });
 
   return fastify;
