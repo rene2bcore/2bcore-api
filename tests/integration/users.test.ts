@@ -356,4 +356,122 @@ describe('Users routes', () => {
       expect(res.statusCode).toBe(401);
     });
   });
+
+  // ── DELETE /v1/users/me ─────────────────────────────────────────────
+
+  describe('DELETE /v1/users/me', () => {
+    it('returns 204 and deletes the account', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { password: 'SecureP@ss1' },
+      });
+      expect(res.statusCode).toBe(204);
+    });
+
+    it('cannot login after deletion', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      await app.inject({
+        method: 'DELETE',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { password: 'SecureP@ss1' },
+      });
+
+      const loginRes = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email, password: 'SecureP@ss1' },
+      });
+      expect(loginRes.statusCode).toBe(401);
+    });
+
+    it('access token is revoked after deletion', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      await app.inject({
+        method: 'DELETE',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { password: 'SecureP@ss1' },
+      });
+
+      const meRes = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(meRes.statusCode).toBe(401);
+    });
+
+    it('returns 401 AUTH_001 when password is wrong', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { password: 'WrongPassword!1' },
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json().code).toBe('AUTH_001');
+    });
+
+    it('returns 422 VAL_001 when password is missing', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: {},
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('VAL_001');
+    });
+
+    it('returns 401 without credentials', async () => {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/v1/users/me',
+        payload: { password: 'SecureP@ss1' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('returns 401 when called with an API key (JWT only)', async () => {
+      const seeded = await seedTestUser();
+      const token = await login(seeded.user.email, seeded.password);
+
+      const keyRes = await app.inject({
+        method: 'POST',
+        url: '/v1/keys',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { name: 'delete-me-key' },
+      });
+      const apiKey = keyRes.json().key as string;
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/v1/users/me',
+        headers: { 'x-api-key': apiKey },
+        payload: { password: seeded.password },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
 });

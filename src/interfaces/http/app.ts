@@ -47,6 +47,7 @@ import { ChatUseCase } from '../../application/use-cases/ai/chat.js';
 import { RegisterUserUseCase } from '../../application/use-cases/users/register.js';
 import { GetMeUseCase } from '../../application/use-cases/users/getMe.js';
 import { UpdateMeUseCase } from '../../application/use-cases/users/updateMe.js';
+import { DeleteMeUseCase } from '../../application/use-cases/users/deleteMe.js';
 
 // Error types
 import { DomainError } from '../../domain/errors/index.js';
@@ -167,6 +168,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo);
   const getMeUseCase = new GetMeUseCase(userRepo);
   const updateMeUseCase = new UpdateMeUseCase(userRepo, auditRepo);
+  const deleteMeUseCase = new DeleteMeUseCase(userRepo, authService, auditRepo);
 
   // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -252,6 +254,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
     registerUserUseCase,
     getMeUseCase,
     updateMeUseCase,
+    deleteMeUseCase,
   });
 
   return fastify;

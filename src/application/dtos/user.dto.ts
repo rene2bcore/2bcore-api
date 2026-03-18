@@ -28,6 +28,10 @@ export const UpdateMeInputSchema = z
     path: ['currentPassword'],
   });
 
+export const DeleteMeInputSchema = z.object({
+  password: z.string().min(1, 'Password is required to confirm account deletion'),
+});
+
 export const UserOutputSchema = z.object({
   id: z.string(),
   email: z.string(),
@@ -38,4 +42,5 @@ export const UserOutputSchema = z.object({
 
 export type RegisterUserInput = z.infer<typeof RegisterUserInputSchema>;
 export type UpdateMeInput = z.infer<typeof UpdateMeInputSchema>;
+export type DeleteMeInput = z.infer<typeof DeleteMeInputSchema>;
 export type UserOutput = z.infer<typeof UserOutputSchema>;

@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { RegisterUserUseCase } from '../../../application/use-cases/users/register.js';
 import { GetMeUseCase } from '../../../application/use-cases/users/getMe.js';
 import { UpdateMeUseCase } from '../../../application/use-cases/users/updateMe.js';
-import { RegisterUserInputSchema, UpdateMeInputSchema } from '../../../application/dtos/user.dto.js';
+import { DeleteMeUseCase } from '../../../application/use-cases/users/deleteMe.js';
+import { RegisterUserInputSchema, UpdateMeInputSchema, DeleteMeInputSchema } from '../../../application/dtos/user.dto.js';
 import { HTTP_STATUS } from '../../../shared/constants/index.js';
 import { env } from '../../../shared/config/env.js';
 
@@ -10,6 +11,7 @@ interface UsersRoutesOptions {
   registerUserUseCase: RegisterUserUseCase;
   getMeUseCase: GetMeUseCase;
   updateMeUseCase: UpdateMeUseCase;
+  deleteMeUseCase: DeleteMeUseCase;
 }
 
 const UserPublicRef = { $ref: 'UserPublic#' };
@@ -23,7 +25,7 @@ const StrongPasswordSchema = {
 };
 
 export async function usersRoutes(fastify: FastifyInstance, opts: UsersRoutesOptions): Promise<void> {
-  const { registerUserUseCase, getMeUseCase, updateMeUseCase } = opts;
+  const { registerUserUseCase, getMeUseCase, updateMeUseCase, deleteMeUseCase } = opts;
   const verifyAuth = (fastify as any).verifyAuth;
   const verifyJWT = (fastify as any).verifyJWT;
 
@@ -120,6 +122,42 @@ export async function usersRoutes(fastify: FastifyInstance, opts: UsersRoutesOpt
       });
 
       return reply.status(HTTP_STATUS.OK).send(user);
+    },
+  });
+
+  // ── DELETE /me ─────────────────────────────────────────────────────
+  fastify.delete('/me', {
+    schema: {
+      tags: ['Users'],
+      summary: 'Delete my account',
+      description: 'Permanently delete the authenticated user\'s account. Requires password confirmation. JWT required. All API keys are revoked and tokens invalidated.',
+      security: [{ BearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['password'],
+        properties: {
+          password: { type: 'string', minLength: 1, description: 'Current password to confirm deletion' },
+        },
+      },
+      response: {
+        204: { type: 'null', description: 'Account deleted' },
+        401: ErrorResponse,
+        422: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const { password } = DeleteMeInputSchema.parse(request.body);
+      const accessToken = request.headers.authorization!.slice(7);
+
+      await deleteMeUseCase.execute(userId, password, {
+        accessToken,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+
+      return reply.status(HTTP_STATUS.NO_CONTENT).send();
     },
   });
 }

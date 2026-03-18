@@ -11,4 +11,5 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   create(input: CreateUserInput): Promise<User>;
   update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash'>>): Promise<User>;
+  delete(id: string): Promise<void>;
 }

@@ -38,6 +38,10 @@ export class PrismaUserRepository implements IUserRepository {
     return this.toDomain(row);
   }
 
+  async delete(id: string): Promise<void> {
+    await this.prisma.user.delete({ where: { id } });
+  }
+
   private toDomain(row: {
     id: string;
     email: string;
