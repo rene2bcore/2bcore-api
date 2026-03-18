@@ -5,4 +5,4 @@ dist/
 coverage/
 *.log
 keys/*.pem
-prisma/migrations/
+# prisma/migrations/ — intentionally tracked in git (schema history)
