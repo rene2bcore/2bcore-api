@@ -42,6 +42,8 @@ export const ERROR_CODES = {
   // AI
   AI_BUDGET_EXCEEDED: 'AI_001',
   AI_PROVIDER_ERROR: 'AI_002',
+  // Users
+  USER_ALREADY_EXISTS: 'USR_001',
   // General
   NOT_FOUND: 'GEN_001',
   INTERNAL_ERROR: 'GEN_500',

@@ -17,6 +17,7 @@ import { authRoutes } from '../../infrastructure/http/routes/auth.routes.js';
 import { keysRoutes } from '../../infrastructure/http/routes/keys.routes.js';
 import { healthRoutes } from '../../infrastructure/http/routes/health.routes.js';
 import { aiRoutes } from '../../infrastructure/http/routes/ai.routes.js';
+import { usersRoutes } from '../../infrastructure/http/routes/users.routes.js';
 
 // Infrastructure
 import { getPrismaClient } from '../../infrastructure/db/prisma.js';
@@ -42,6 +43,7 @@ import { CreateApiKeyUseCase } from '../../application/use-cases/keys/createApiK
 import { ListApiKeysUseCase } from '../../application/use-cases/keys/listApiKeys.js';
 import { RevokeApiKeyUseCase } from '../../application/use-cases/keys/revokeApiKey.js';
 import { ChatUseCase } from '../../application/use-cases/ai/chat.js';
+import { RegisterUserUseCase } from '../../application/use-cases/users/register.js';
 
 // Error types
 import { DomainError } from '../../domain/errors/index.js';
@@ -144,6 +146,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const listApiKeysUseCase = new ListApiKeysUseCase(apiKeyRepo);
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
   const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo);
+  const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo);
 
   // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -211,6 +214,11 @@ export async function buildApp(overrides: AppOverrides = {}) {
   await fastify.register(aiRoutes, {
     prefix: `/${env.API_VERSION}/ai`,
     chatUseCase,
+  });
+
+  await fastify.register(usersRoutes, {
+    prefix: `/${env.API_VERSION}/users`,
+    registerUserUseCase,
   });
 
   return fastify;

@@ -75,6 +75,12 @@ export class ApiKeyRevokedError extends UnauthorizedError {
   }
 }
 
+export class UserAlreadyExistsError extends DomainError {
+  constructor() {
+    super('Email address is already registered', ERROR_CODES.USER_ALREADY_EXISTS, HTTP_STATUS.CONFLICT);
+  }
+}
+
 export class AiBudgetExceededError extends DomainError {
   constructor() {
     super('Monthly AI token budget exceeded', ERROR_CODES.AI_BUDGET_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
