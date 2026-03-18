@@ -1,0 +1,83 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: 2bcore-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+      - '9090:9090'   # Prometheus metrics
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://2bcore:${POSTGRES_PASSWORD:-secret}@postgres:5432/2bcore_db
+      REDIS_URL: redis://redis:6379
+      JWT_PRIVATE_KEY_PATH: /app/keys/private.pem
+      JWT_PUBLIC_KEY_PATH: /app/keys/public.pem
+      OTEL_SERVICE_NAME: 2bcore-api
+      OTEL_SERVICE_VERSION: '1.0.0'
+      LOG_LEVEL: info
+    volumes:
+      - ./keys:/app/keys:ro   # Mount pre-generated keys (read-only)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - 2bcore-net
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: 2bcore-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: 2bcore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      POSTGRES_DB: 2bcore_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - 2bcore-net
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U 2bcore -d 2bcore_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: 2bcore-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - 2bcore-net
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  2bcore-net:
+    driver: bridge
