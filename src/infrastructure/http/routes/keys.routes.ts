@@ -15,10 +15,11 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
   const { createApiKeyUseCase, listApiKeysUseCase, revokeApiKeyUseCase } = opts;
 
   const verifyJWT = (fastify as any).verifyJWT;
+  const verifyAuth = (fastify as any).verifyAuth;
 
   // ── POST /keys ─────────────────────────────────────────────────────
   fastify.post('/', {
-    preHandler: [verifyJWT],
+    preHandler: [verifyJWT], // key creation requires JWT — not bootstrappable via API key
     handler: async (request, reply) => {
       const userId = request.user!.sub;
       const body = CreateApiKeyInputSchema.parse(request.body);
@@ -31,7 +32,7 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
 
   // ── GET /keys ──────────────────────────────────────────────────────
   fastify.get('/', {
-    preHandler: [verifyJWT],
+    preHandler: [verifyAuth],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
       const keys = await listApiKeysUseCase.execute(userId);
