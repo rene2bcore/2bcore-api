@@ -11,6 +11,22 @@ interface KeysRoutesOptions {
   revokeApiKeyUseCase: RevokeApiKeyUseCase;
 }
 
+const ErrorResponse = { $ref: 'ErrorResponse#' };
+
+const ApiKeyMeta = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    prefix: { type: 'string', description: 'First 8 characters of the key for identification' },
+    isActive: { type: 'boolean' },
+    createdAt: { type: 'string', format: 'date-time' },
+    lastUsedAt: { type: ['string', 'null'], format: 'date-time' },
+    revokedAt: { type: ['string', 'null'], format: 'date-time' },
+  },
+  required: ['id', 'name', 'prefix', 'isActive', 'createdAt'],
+};
+
 export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptions): Promise<void> {
   const { createApiKeyUseCase, listApiKeysUseCase, revokeApiKeyUseCase } = opts;
 
@@ -19,6 +35,34 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
 
   // ── POST /keys ─────────────────────────────────────────────────────
   fastify.post('/', {
+    schema: {
+      tags: ['API Keys'],
+      summary: 'Create API key',
+      description: 'Create a new API key. The raw key (`sk-live-...`) is returned **once** and never stored in plaintext. JWT required.',
+      security: [{ BearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 64, description: 'Human-readable label for the key' },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            key: { type: 'string', description: 'Full API key — shown once, store securely' },
+            prefix: { type: 'string' },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+          required: ['id', 'name', 'key', 'prefix', 'createdAt'],
+        },
+        401: ErrorResponse,
+        422: ErrorResponse,
+      },
+    },
     preHandler: [verifyJWT], // key creation requires JWT — not bootstrappable via API key
     handler: async (request, reply) => {
       const userId = request.user!.sub;
@@ -32,6 +76,22 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
 
   // ── GET /keys ──────────────────────────────────────────────────────
   fastify.get('/', {
+    schema: {
+      tags: ['API Keys'],
+      summary: 'List API keys',
+      description: 'List all API keys for the authenticated user. Raw keys are never returned.',
+      security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: ApiKeyMeta },
+          },
+          required: ['data'],
+        },
+        401: ErrorResponse,
+      },
+    },
     preHandler: [verifyAuth],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
@@ -42,6 +102,25 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
 
   // ── DELETE /keys/:id ───────────────────────────────────────────────
   fastify.delete('/:id', {
+    schema: {
+      tags: ['API Keys'],
+      summary: 'Revoke API key',
+      description: 'Permanently revoke an API key by ID. JWT required.',
+      security: [{ BearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', description: 'API key ID' },
+        },
+      },
+      response: {
+        204: { type: 'null', description: 'Key revoked' },
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+    },
     preHandler: [verifyJWT],
     handler: async (request, reply) => {
       const userId = request.user!.sub;

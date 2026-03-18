@@ -190,7 +190,7 @@ describe('Auth routes', () => {
       expect(res.statusCode).toBe(401);
     });
 
-    it('returns 401 when userId body field is missing', async () => {
+    it('returns 422 when userId body field is missing', async () => {
       const login = await app.inject({
         method: 'POST',
         url: '/v1/auth/login',
@@ -204,7 +204,8 @@ describe('Auth routes', () => {
         cookies: cookiesFor(refresh),
         payload: {},
       });
-      expect(res.statusCode).toBe(401);
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('VAL_001');
     });
 
     it('returns 401 for a tampered refresh token', async () => {

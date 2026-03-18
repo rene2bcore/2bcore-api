@@ -13,11 +13,57 @@ interface AuthRoutesOptions {
   logoutUseCase: LogoutUseCase;
 }
 
+const TokenResponse = {
+  type: 'object',
+  properties: {
+    accessToken: { type: 'string' },
+    tokenType: { type: 'string', enum: ['Bearer'] },
+    expiresIn: { type: 'number', description: 'Seconds until the access token expires' },
+  },
+  required: ['accessToken', 'tokenType', 'expiresIn'],
+} as const;
+
+const ErrorResponse = { $ref: 'ErrorResponse#' };
+
 export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptions): Promise<void> {
   const { loginUseCase, refreshUseCase, logoutUseCase } = opts;
 
   // ── POST /login ────────────────────────────────────────────────────
   fastify.post('/login', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Login',
+      description: 'Authenticate with email and password. Returns a JWT access token and sets an HttpOnly refresh token cookie.',
+      body: {
+        type: 'object',
+        required: ['email', 'password'],
+        properties: {
+          email: { type: 'string', format: 'email' },
+          password: { type: 'string', minLength: 8, maxLength: 128 },
+        },
+      },
+      response: {
+        200: {
+          ...TokenResponse,
+          properties: {
+            ...TokenResponse.properties,
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                email: { type: 'string', format: 'email' },
+                role: { type: 'string' },
+              },
+              required: ['id', 'email', 'role'],
+            },
+          },
+          required: [...TokenResponse.required, 'user'],
+        },
+        401: ErrorResponse,
+        422: ErrorResponse,
+        429: ErrorResponse,
+      },
+    },
     config: {
       rateLimit: {
         max: env.RATE_LIMIT_AUTH_MAX,
@@ -54,6 +100,23 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
 
   // ── POST /refresh ──────────────────────────────────────────────────
   fastify.post('/refresh', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Refresh access token',
+      description: 'Exchange the HttpOnly refresh_token cookie for a new access token. Rotates the refresh token.',
+      body: {
+        type: 'object',
+        required: ['userId'],
+        properties: {
+          userId: { type: 'string', description: 'ID of the user whose token to refresh' },
+        },
+      },
+      response: {
+        200: TokenResponse,
+        401: ErrorResponse,
+        429: ErrorResponse,
+      },
+    },
     config: {
       rateLimit: {
         max: env.RATE_LIMIT_AUTH_MAX,
@@ -97,6 +160,16 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
 
   // ── POST /logout ───────────────────────────────────────────────────
   fastify.post('/logout', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Logout',
+      description: 'Revoke the current access token and clear the refresh token cookie.',
+      security: [{ BearerAuth: [] }],
+      response: {
+        204: { type: 'null', description: 'Successfully logged out' },
+        401: ErrorResponse,
+      },
+    },
     preHandler: [(fastify as any).verifyJWT],
     handler: async (request, reply) => {
       const user = request.user!;

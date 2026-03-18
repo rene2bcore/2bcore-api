@@ -8,12 +8,75 @@ interface AiRoutesOptions {
   chatUseCase: ChatUseCase;
 }
 
+const ErrorResponse = { $ref: 'ErrorResponse#' };
+
 export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions): Promise<void> {
   const { chatUseCase } = opts;
   const verifyAuth = (fastify as any).verifyAuth;
 
   // ── POST /v1/ai/chat ────────────────────────────────────────────────
   fastify.post('/chat', {
+    schema: {
+      tags: ['AI'],
+      summary: 'Chat completion',
+      description:
+        'Send a conversation to the AI and receive a response. ' +
+        'Set `stream: true` for Server-Sent Events (SSE) streaming. ' +
+        'Use `model` to select a tier: `fast` (Haiku), `standard` (Sonnet, default), or `powerful` (Opus).',
+      security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }],
+      body: {
+        type: 'object',
+        required: ['messages'],
+        properties: {
+          messages: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 100,
+            items: {
+              type: 'object',
+              required: ['role', 'content'],
+              properties: {
+                role: { type: 'string', enum: ['user', 'assistant'] },
+                content: { type: 'string', minLength: 1 },
+              },
+            },
+          },
+          system: { type: 'string', maxLength: 10000, description: 'Optional system prompt' },
+          model: {
+            type: 'string',
+            description: 'Tier name (`fast`, `standard`, `powerful`) or exact model ID. Defaults to `standard`.',
+          },
+          maxTokens: { type: 'number', minimum: 1, maximum: 8192, description: 'Max tokens in the response' },
+          stream: { type: 'boolean', default: false, description: 'Return SSE stream instead of JSON' },
+        },
+      },
+      response: {
+        200: {
+          description: 'Non-streaming response (when `stream: false`)',
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            model: { type: 'string' },
+            content: { type: 'string' },
+            usage: {
+              type: 'object',
+              properties: {
+                inputTokens: { type: 'number' },
+                outputTokens: { type: 'number' },
+                totalTokens: { type: 'number' },
+                estimatedCostUsd: { type: 'number' },
+              },
+              required: ['inputTokens', 'outputTokens', 'totalTokens', 'estimatedCostUsd'],
+            },
+          },
+          required: ['id', 'model', 'content', 'usage'],
+        },
+        401: ErrorResponse,
+        422: ErrorResponse,
+        429: ErrorResponse,
+        500: ErrorResponse,
+      },
+    },
     preHandler: [verifyAuth],
     handler: async (request, reply) => {
       const userId = request.user!.sub;

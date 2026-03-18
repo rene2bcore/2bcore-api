@@ -11,6 +11,7 @@ import { CORRELATION_ID_HEADER, REQUEST_ID_HEADER } from '../../shared/constants
 // Plugins
 import { authPlugin } from '../../infrastructure/http/plugins/auth.plugin.js';
 import { rateLimitPlugin } from '../../infrastructure/http/plugins/rateLimit.plugin.js';
+import { swaggerPlugin } from '../../infrastructure/http/plugins/swagger.plugin.js';
 
 // Routes
 import { authRoutes } from '../../infrastructure/http/routes/auth.routes.js';
@@ -90,15 +91,30 @@ export async function buildApp(overrides: AppOverrides = {}) {
     }, 'Request completed');
   });
 
+  // ── OpenAPI docs (non-production only) ────────────────────────────
+  if (env.NODE_ENV !== 'production') {
+    await fastify.register(swaggerPlugin);
+  }
+
   // ── Security plugins ───────────────────────────────────────────────
+  const isDev = env.NODE_ENV !== 'production';
   await fastify.register(helmet, {
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-      },
-    },
+    contentSecurityPolicy: isDev
+      ? {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:'],
+          },
+        }
+      : {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+          },
+        },
     hsts: { maxAge: 31_536_000, includeSubDomains: true, preload: true },
     frameguard: { action: 'deny' },
     noSniff: true,
@@ -155,6 +171,17 @@ export async function buildApp(overrides: AppOverrides = {}) {
   // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
     const correlationId = request.headers[CORRELATION_ID_HEADER];
+
+    // Fastify AJV schema validation errors (request body/params/query)
+    if ('code' in error && error.code === 'FST_ERR_VALIDATION') {
+      logger.warn({ requestId: request.id, correlationId, validation: (error as any).validation }, 'Validation error');
+      return reply.status(HTTP_STATUS.UNPROCESSABLE).send({
+        statusCode: HTTP_STATUS.UNPROCESSABLE,
+        error: 'Validation Error',
+        code: 'VAL_001',
+        details: (error as any).validation ?? [],
+      });
+    }
 
     if (error instanceof ZodError) {
       logger.warn({ requestId: request.id, correlationId, issues: error.issues }, 'Validation error');

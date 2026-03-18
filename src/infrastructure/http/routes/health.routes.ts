@@ -6,7 +6,24 @@ import { env } from '../../../shared/config/env.js';
 
 export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /health (liveness) ─────────────────────────────────────────
-  fastify.get('/health', async (_request, reply) => {
+  fastify.get('/health', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Liveness check',
+      description: 'Returns 200 if the process is alive.',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['ok'] },
+            service: { type: 'string' },
+            version: { type: 'string' },
+            timestamp: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  }, async (_request, reply) => {
     return reply.status(HTTP_STATUS.OK).send({
       status: 'ok',
       service: env.OTEL_SERVICE_NAME,
@@ -16,7 +33,43 @@ export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // ── GET /health/ready (readiness) ─────────────────────────────────
-  fastify.get('/health/ready', async (_request, reply) => {
+  fastify.get('/health/ready', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Readiness check',
+      description: 'Returns 200 if the API can serve traffic (DB + Redis reachable).',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['ready'] },
+            checks: {
+              type: 'object',
+              properties: {
+                database: { type: 'string', enum: ['ok', 'error'] },
+                redis: { type: 'string', enum: ['ok', 'error'] },
+              },
+            },
+            timestamp: { type: 'string', format: 'date-time' },
+          },
+        },
+        503: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['not_ready'] },
+            checks: {
+              type: 'object',
+              properties: {
+                database: { type: 'string', enum: ['ok', 'error'] },
+                redis: { type: 'string', enum: ['ok', 'error'] },
+              },
+            },
+            timestamp: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  }, async (_request, reply) => {
     const [dbOk, redisOk] = await Promise.all([pingDB(), pingRedis()]);
 
     const checks = {
