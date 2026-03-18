@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { AuthService, AccessTokenPayload } from '../../../application/services/AuthService.js';
 import { IApiKeyRepository } from '../../../domain/repositories/IApiKeyRepository.js';
 import { sha256 } from '../../../shared/utils/crypto.js';
-import { UnauthorizedError, ApiKeyInvalidError, ApiKeyRevokedError } from '../../../domain/errors/index.js';
+import { UnauthorizedError, ApiKeyInvalidError, ApiKeyRevokedError, ForbiddenError } from '../../../domain/errors/index.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -62,6 +62,16 @@ export const authPlugin = fp(async (fastify: FastifyInstance, opts: AuthPluginOp
       exp: 0,
       type: 'apikey',
     };
+  });
+
+  /**
+   * Decorator: requireAdmin
+   * Must be used AFTER verifyJWT. Throws 403 if the user is not an ADMIN.
+   */
+  fastify.decorate('requireAdmin', async (request: FastifyRequest) => {
+    if (!request.user || request.user.role !== 'ADMIN') {
+      throw new ForbiddenError();
+    }
   });
 
   /**

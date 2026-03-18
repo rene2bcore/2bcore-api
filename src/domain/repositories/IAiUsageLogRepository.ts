@@ -18,6 +18,14 @@ export interface FindAiUsageLogsOptions {
   to?: Date;
 }
 
+export interface FindAllAiUsageLogsOptions {
+  page: number;
+  limit: number;
+  userId?: string;
+  from?: Date;
+  to?: Date;
+}
+
 export interface AiUsageLogPage {
   data: AiUsageLog[];
   total: number;
@@ -26,4 +34,5 @@ export interface AiUsageLogPage {
 export interface IAiUsageLogRepository {
   create(input: CreateAiUsageLogInput): Promise<AiUsageLog>;
   findByUserId(options: FindAiUsageLogsOptions): Promise<AiUsageLogPage>;
+  findAll(options: FindAllAiUsageLogsOptions): Promise<AiUsageLogPage>;
 }

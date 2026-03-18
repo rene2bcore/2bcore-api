@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { IUserRepository, CreateUserInput } from '../../../domain/repositories/IUserRepository.js';
+import { IUserRepository, CreateUserInput, FindAllUsersOptions, UserPage } from '../../../domain/repositories/IUserRepository.js';
 import { User } from '../../../domain/entities/User.js';
 
 export class PrismaUserRepository implements IUserRepository {
@@ -15,6 +15,15 @@ export class PrismaUserRepository implements IUserRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  async findAll({ page, limit }: FindAllUsersOptions): Promise<UserPage> {
+    const skip = (page - 1) * limit;
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      this.prisma.user.count(),
+    ]);
+    return { data: rows.map((r) => this.toDomain(r)), total };
+  }
+
   async create(input: CreateUserInput): Promise<User> {
     const row = await this.prisma.user.create({
       data: {
@@ -26,13 +35,14 @@ export class PrismaUserRepository implements IUserRepository {
     return this.toDomain(row);
   }
 
-  async update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash'>>): Promise<User> {
+  async update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash' | 'role'>>): Promise<User> {
     const row = await this.prisma.user.update({
       where: { id },
       data: {
         ...(data.isActive !== undefined && { isActive: data.isActive }),
         ...(data.email && { email: data.email }),
         ...(data.passwordHash && { passwordHash: data.passwordHash }),
+        ...(data.role && { role: data.role }),
       },
     });
     return this.toDomain(row);

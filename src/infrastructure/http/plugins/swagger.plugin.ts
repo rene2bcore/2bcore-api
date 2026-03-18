@@ -63,6 +63,7 @@ export const swaggerPlugin = fp(async (fastify: FastifyInstance) => {
         { name: 'Users', description: 'User registration and profile management' },
         { name: 'API Keys', description: 'Machine-to-machine API key management' },
         { name: 'AI', description: 'AI chat completions with streaming support' },
+        { name: 'Admin', description: 'Admin-only endpoints for user and billing management' },
       ],
     },
   });

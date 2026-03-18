@@ -3,6 +3,7 @@ import {
   IAiUsageLogRepository,
   CreateAiUsageLogInput,
   FindAiUsageLogsOptions,
+  FindAllAiUsageLogsOptions,
   AiUsageLogPage,
 } from '../../../domain/repositories/IAiUsageLogRepository.js';
 import { AiUsageLog } from '../../../domain/entities/AiUsageLog.js';
@@ -32,6 +33,35 @@ export class PrismaAiUsageLogRepository implements IAiUsageLogRepository {
 
     const where = {
       userId,
+      ...(from || to
+        ? {
+            createdAt: {
+              ...(from && { gte: from }),
+              ...(to && { lte: to }),
+            },
+          }
+        : {}),
+    };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.aiUsageLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.aiUsageLog.count({ where }),
+    ]);
+
+    return { data: rows.map((r) => this.toDomain(r)), total };
+  }
+
+  async findAll(options: FindAllAiUsageLogsOptions): Promise<AiUsageLogPage> {
+    const { page, limit, userId, from, to } = options;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      ...(userId !== undefined && { userId }),
       ...(from || to
         ? {
             createdAt: {

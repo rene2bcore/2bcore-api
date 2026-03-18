@@ -19,6 +19,7 @@ import { keysRoutes } from '../../infrastructure/http/routes/keys.routes.js';
 import { healthRoutes } from '../../infrastructure/http/routes/health.routes.js';
 import { aiRoutes } from '../../infrastructure/http/routes/ai.routes.js';
 import { usersRoutes } from '../../infrastructure/http/routes/users.routes.js';
+import { adminRoutes } from '../../infrastructure/http/routes/admin.routes.js';
 
 // Infrastructure
 import { getPrismaClient } from '../../infrastructure/db/prisma.js';
@@ -46,6 +47,10 @@ import { ListApiKeysUseCase } from '../../application/use-cases/keys/listApiKeys
 import { RevokeApiKeyUseCase } from '../../application/use-cases/keys/revokeApiKey.js';
 import { ChatUseCase } from '../../application/use-cases/ai/chat.js';
 import { GetAiUsageUseCase } from '../../application/use-cases/ai/getUsage.js';
+import { ListUsersUseCase } from '../../application/use-cases/admin/listUsers.js';
+import { GetUserUseCase } from '../../application/use-cases/admin/getUser.js';
+import { UpdateUserUseCase } from '../../application/use-cases/admin/updateUser.js';
+import { GetAllAiUsageUseCase } from '../../application/use-cases/admin/getAllAiUsage.js';
 import { RegisterUserUseCase } from '../../application/use-cases/users/register.js';
 import { GetMeUseCase } from '../../application/use-cases/users/getMe.js';
 import { UpdateMeUseCase } from '../../application/use-cases/users/updateMe.js';
@@ -169,6 +174,10 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
   const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo, aiUsageRepo);
   const getAiUsageUseCase = new GetAiUsageUseCase(aiUsageRepo);
+  const listUsersUseCase = new ListUsersUseCase(userRepo);
+  const getUserUseCase = new GetUserUseCase(userRepo);
+  const updateUserUseCase = new UpdateUserUseCase(userRepo, auditRepo);
+  const getAllAiUsageUseCase = new GetAllAiUsageUseCase(aiUsageRepo);
   const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo);
   const getMeUseCase = new GetMeUseCase(userRepo);
   const updateMeUseCase = new UpdateMeUseCase(userRepo, auditRepo);
@@ -260,6 +269,14 @@ export async function buildApp(overrides: AppOverrides = {}) {
     getMeUseCase,
     updateMeUseCase,
     deleteMeUseCase,
+  });
+
+  await fastify.register(adminRoutes, {
+    prefix: `/${env.API_VERSION}/admin`,
+    listUsersUseCase,
+    getUserUseCase,
+    updateUserUseCase,
+    getAllAiUsageUseCase,
   });
 
   return fastify;
