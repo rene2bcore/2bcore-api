@@ -26,11 +26,12 @@ export class PrismaUserRepository implements IUserRepository {
     return this.toDomain(row);
   }
 
-  async update(id: string, data: Partial<Pick<User, 'isActive' | 'passwordHash'>>): Promise<User> {
+  async update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash'>>): Promise<User> {
     const row = await this.prisma.user.update({
       where: { id },
       data: {
         ...(data.isActive !== undefined && { isActive: data.isActive }),
+        ...(data.email && { email: data.email }),
         ...(data.passwordHash && { passwordHash: data.passwordHash }),
       },
     });

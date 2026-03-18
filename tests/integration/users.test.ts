@@ -1,12 +1,25 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestApp, closeTestApp, type TestApp } from './helpers/app.helper.js';
-import { cleanupIntegrationData, TEST_EMAIL_DOMAIN } from './helpers/db.helper.js';
+import { seedTestUser, cleanupIntegrationData, TEST_EMAIL_DOMAIN } from './helpers/db.helper.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── Test suite ───────────────────────────────────────────────────────────────
 
 describe('Users routes', () => {
   let app: TestApp;
+
+  async function register(email: string, password = 'SecureP@ss1') {
+    return app.inject({ method: 'POST', url: '/v1/users', payload: { email, password } });
+  }
+
+  async function login(email: string, password = 'SecureP@ss1'): Promise<string> {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { email, password },
+    });
+    return res.json().accessToken as string;
+  }
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -137,6 +150,210 @@ describe('Users routes', () => {
       });
       expect(res.statusCode).toBe(422);
       expect(res.json().code).toBe('VAL_001');
+    });
+  });
+
+  // ── GET /v1/users/me ────────────────────────────────────────────────
+
+  describe('GET /v1/users/me', () => {
+    it('returns 200 with the authenticated user profile', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.email).toBe(email);
+      expect(body.role).toBe('USER');
+      expect(body.isActive).toBe(true);
+      expect(body).not.toHaveProperty('passwordHash');
+    });
+
+    it('works with an API key', async () => {
+      const seeded = await seedTestUser();
+      const token = await login(seeded.user.email, seeded.password);
+
+      const keyRes = await app.inject({
+        method: 'POST',
+        url: '/v1/keys',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { name: 'me-test-key' },
+      });
+      const apiKey = keyRes.json().key as string;
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me',
+        headers: { 'x-api-key': apiKey },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().email).toBe(seeded.user.email);
+    });
+
+    it('returns 401 without credentials', async () => {
+      const res = await app.inject({ method: 'GET', url: '/v1/users/me' });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // ── PATCH /v1/users/me ──────────────────────────────────────────────
+
+  describe('PATCH /v1/users/me', () => {
+    it('returns 200 and updated email', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      const newEmail = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { email: newEmail },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().email).toBe(newEmail);
+    });
+
+    it('allows login with updated email', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      const newEmail = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { email: newEmail },
+      });
+
+      const loginRes = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: newEmail, password: 'SecureP@ss1' },
+      });
+      expect(loginRes.statusCode).toBe(200);
+    });
+
+    it('returns 200 and allows login with new password', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { currentPassword: 'SecureP@ss1', newPassword: 'NewP@ss123!' },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const loginRes = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email, password: 'NewP@ss123!' },
+      });
+      expect(loginRes.statusCode).toBe(200);
+    });
+
+    it('returns 409 USR_001 when new email is already taken', async () => {
+      const emailA = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      const emailB = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(emailA);
+      await register(emailB);
+      const token = await login(emailA);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { email: emailB },
+      });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('USR_001');
+    });
+
+    it('returns 401 AUTH_001 when currentPassword is wrong', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { currentPassword: 'WrongPass!1', newPassword: 'NewP@ss123!' },
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json().code).toBe('AUTH_001');
+    });
+
+    it('returns 422 VAL_001 when newPassword is missing currentPassword', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { newPassword: 'NewP@ss123!' },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('VAL_001');
+    });
+
+    it('returns 422 VAL_001 when body is empty', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      await register(email);
+      const token = await login(email);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: {},
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('VAL_001');
+    });
+
+    it('returns 401 without credentials', async () => {
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        payload: { email: 'any@example.com' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('returns 401 when called with an API key (JWT only)', async () => {
+      const seeded = await seedTestUser();
+      const token = await login(seeded.user.email, seeded.password);
+
+      const keyRes = await app.inject({
+        method: 'POST',
+        url: '/v1/keys',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { name: 'patch-me-key' },
+      });
+      const apiKey = keyRes.json().key as string;
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { 'x-api-key': apiKey },
+        payload: { email: `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}` },
+      });
+      expect(res.statusCode).toBe(401);
     });
   });
 });

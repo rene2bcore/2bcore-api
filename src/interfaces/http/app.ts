@@ -44,6 +44,8 @@ import { ListApiKeysUseCase } from '../../application/use-cases/keys/listApiKeys
 import { RevokeApiKeyUseCase } from '../../application/use-cases/keys/revokeApiKey.js';
 import { ChatUseCase } from '../../application/use-cases/ai/chat.js';
 import { RegisterUserUseCase } from '../../application/use-cases/users/register.js';
+import { GetMeUseCase } from '../../application/use-cases/users/getMe.js';
+import { UpdateMeUseCase } from '../../application/use-cases/users/updateMe.js';
 
 // Error types
 import { DomainError } from '../../domain/errors/index.js';
@@ -147,6 +149,8 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
   const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo);
   const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo);
+  const getMeUseCase = new GetMeUseCase(userRepo);
+  const updateMeUseCase = new UpdateMeUseCase(userRepo, auditRepo);
 
   // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -219,6 +223,8 @@ export async function buildApp(overrides: AppOverrides = {}) {
   await fastify.register(usersRoutes, {
     prefix: `/${env.API_VERSION}/users`,
     registerUserUseCase,
+    getMeUseCase,
+    updateMeUseCase,
   });
 
   return fastify;
