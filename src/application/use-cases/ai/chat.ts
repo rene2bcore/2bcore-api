@@ -1,5 +1,6 @@
 import type { IAnthropicClient } from '../../../infrastructure/ai/AnthropicClient.js';
 import type { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepository.js';
+import type { IAiUsageLogRepository } from '../../../domain/repositories/IAiUsageLogRepository.js';
 import type { CostTracker } from '../../services/CostTracker.js';
 import type { ModelRouter } from '../../services/ModelRouter.js';
 import type { ChatInput, ChatOutput, ChatUsage } from '../../dtos/ai.dto.js';
@@ -20,6 +21,7 @@ export class ChatUseCase {
     private readonly costTracker: CostTracker,
     private readonly modelRouter: ModelRouter,
     private readonly auditRepo: IAuditLogRepository,
+    private readonly usageRepo: IAiUsageLogRepository,
   ) {}
 
   /**
@@ -55,6 +57,15 @@ export class ChatUseCase {
         ipAddress: context?.ipAddress,
         userAgent: context?.userAgent,
         metadata: { model: result.model, inputTokens: result.inputTokens, outputTokens: result.outputTokens, estimatedCostUsd, stream: false },
+      }),
+      this.usageRepo.create({
+        userId,
+        requestId: result.id,
+        model: result.model,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        estimatedCostUsd,
+        stream: false,
       }),
     ]);
 
@@ -95,6 +106,7 @@ export class ChatUseCase {
     const usage: ChatUsage = { inputTokens, outputTokens, totalTokens, estimatedCostUsd };
 
     // Fire-and-forget — don't block the final SSE event on DB/Redis writes
+    const streamRequestId = `stream_${Date.now()}_${userId}`;
     void Promise.all([
       this.costTracker.recordUsage(userId, totalTokens),
       this.auditRepo.create({
@@ -105,6 +117,15 @@ export class ChatUseCase {
         ipAddress: context?.ipAddress,
         userAgent: context?.userAgent,
         metadata: { model, inputTokens, outputTokens, estimatedCostUsd, stream: true },
+      }),
+      this.usageRepo.create({
+        userId,
+        requestId: streamRequestId,
+        model,
+        inputTokens,
+        outputTokens,
+        estimatedCostUsd,
+        stream: true,
       }),
     ]);
 

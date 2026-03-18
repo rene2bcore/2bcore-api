@@ -32,6 +32,7 @@ import { AnthropicClient, type IAnthropicClient } from '../../infrastructure/ai/
 import { PrismaUserRepository } from '../../infrastructure/db/repositories/user.repository.js';
 import { PrismaApiKeyRepository } from '../../infrastructure/db/repositories/apikey.repository.js';
 import { PrismaAuditLogRepository } from '../../infrastructure/db/repositories/auditlog.repository.js';
+import { PrismaAiUsageLogRepository } from '../../infrastructure/db/repositories/aiusagelog.repository.js';
 
 // Services & Use Cases
 import { AuthService } from '../../application/services/AuthService.js';
@@ -44,6 +45,7 @@ import { CreateApiKeyUseCase } from '../../application/use-cases/keys/createApiK
 import { ListApiKeysUseCase } from '../../application/use-cases/keys/listApiKeys.js';
 import { RevokeApiKeyUseCase } from '../../application/use-cases/keys/revokeApiKey.js';
 import { ChatUseCase } from '../../application/use-cases/ai/chat.js';
+import { GetAiUsageUseCase } from '../../application/use-cases/ai/getUsage.js';
 import { RegisterUserUseCase } from '../../application/use-cases/users/register.js';
 import { GetMeUseCase } from '../../application/use-cases/users/getMe.js';
 import { UpdateMeUseCase } from '../../application/use-cases/users/updateMe.js';
@@ -148,6 +150,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const userRepo = new PrismaUserRepository(prisma);
   const apiKeyRepo = new PrismaApiKeyRepository(prisma);
   const auditRepo = new PrismaAuditLogRepository(prisma);
+  const aiUsageRepo = new PrismaAiUsageLogRepository(prisma);
 
   // ── Services ───────────────────────────────────────────────────────
   const authService = new AuthService(tokenBlacklist, refreshTokenStore);
@@ -164,7 +167,8 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const createApiKeyUseCase = new CreateApiKeyUseCase(apiKeyRepo, auditRepo);
   const listApiKeysUseCase = new ListApiKeysUseCase(apiKeyRepo);
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
-  const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo);
+  const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo, aiUsageRepo);
+  const getAiUsageUseCase = new GetAiUsageUseCase(aiUsageRepo);
   const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo);
   const getMeUseCase = new GetMeUseCase(userRepo);
   const updateMeUseCase = new UpdateMeUseCase(userRepo, auditRepo);
@@ -247,6 +251,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
   await fastify.register(aiRoutes, {
     prefix: `/${env.API_VERSION}/ai`,
     chatUseCase,
+    getAiUsageUseCase,
   });
 
   await fastify.register(usersRoutes, {

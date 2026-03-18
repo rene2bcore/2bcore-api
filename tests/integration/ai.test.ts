@@ -245,4 +245,96 @@ describe('AI routes', () => {
       expect(res.statusCode).toBe(401);
     });
   });
+
+  // ── GET /v1/ai/usage ───────────────────────────────────────────────
+
+  describe('GET /v1/ai/usage', () => {
+    // Seed some usage logs by making real (mocked) chat requests first
+    beforeAll(async () => {
+      for (let i = 0; i < 3; i++) {
+        await app.inject({
+          method: 'POST',
+          url: '/v1/ai/chat',
+          headers: { authorization: `Bearer ${token}` },
+          payload: { messages: [{ role: 'user', content: `Seed message ${i}` }] },
+        });
+      }
+    });
+
+    it('returns 200 with paginated usage logs', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/ai/usage',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.data).toBeInstanceOf(Array);
+      expect(body.data.length).toBeGreaterThanOrEqual(3);
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(20);
+      expect(body.pagination.total).toBeGreaterThanOrEqual(3);
+      expect(body.pagination.totalPages).toBeGreaterThanOrEqual(1);
+    });
+
+    it('returns correct log shape', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/ai/usage',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const log = res.json().data[0];
+      expect(log).toHaveProperty('id');
+      expect(log).toHaveProperty('requestId');
+      expect(log).toHaveProperty('model');
+      expect(log.inputTokens).toBeTypeOf('number');
+      expect(log.outputTokens).toBeTypeOf('number');
+      expect(log.totalTokens).toBe(log.inputTokens + log.outputTokens);
+      expect(log.estimatedCostUsd).toBeTypeOf('number');
+      expect(log.stream).toBeTypeOf('boolean');
+      expect(log.createdAt).toBeTypeOf('string');
+    });
+
+    it('returns non-zero summary totals', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/ai/usage',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const { summary } = res.json();
+      expect(summary.totalInputTokens).toBeGreaterThan(0);
+      expect(summary.totalOutputTokens).toBeGreaterThan(0);
+      expect(summary.totalTokens).toBe(summary.totalInputTokens + summary.totalOutputTokens);
+      expect(summary.totalCostUsd).toBeGreaterThan(0);
+    });
+
+    it('respects page and limit query params', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/ai/usage?page=1&limit=1',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.pagination.limit).toBe(1);
+    });
+
+    it('returns 401 without credentials', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/ai/usage',
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('returns 401 with API key (JWT-only endpoint)', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/ai/usage',
+        headers: { 'x-api-key': apiKey },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
 });

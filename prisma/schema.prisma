@@ -21,8 +21,9 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  apiKeys   ApiKey[]
-  auditLogs AuditLog[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+  aiUsageLogs  AiUsageLog[]
 
   @@index([email])
   @@map("users")
@@ -44,6 +45,25 @@ model ApiKey {
   @@index([userId])
   @@index([keyHash])
   @@map("api_keys")
+}
+
+model AiUsageLog {
+  id               String   @id @default(cuid())
+  userId           String?  @map("user_id")
+  requestId        String   @map("request_id") @db.VarChar(128)
+  model            String   @db.VarChar(64)
+  inputTokens      Int      @map("input_tokens")
+  outputTokens     Int      @map("output_tokens")
+  totalTokens      Int      @map("total_tokens")
+  estimatedCostUsd Float    @map("estimated_cost_usd") @db.DoublePrecision
+  stream           Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
 }
 
 model AuditLog {

@@ -1,18 +1,22 @@
 import type { FastifyInstance } from 'fastify';
 import { ChatInputSchema } from '../../../application/dtos/ai.dto.js';
+import { AiUsageQuerySchema } from '../../../application/dtos/aiusage.dto.js';
 import { ChatUseCase } from '../../../application/use-cases/ai/chat.js';
+import { GetAiUsageUseCase } from '../../../application/use-cases/ai/getUsage.js';
 import { HTTP_STATUS } from '../../../shared/constants/index.js';
 import { logger } from '../../observability/logger.js';
 
 interface AiRoutesOptions {
   chatUseCase: ChatUseCase;
+  getAiUsageUseCase: GetAiUsageUseCase;
 }
 
 const ErrorResponse = { $ref: 'ErrorResponse#' };
 
 export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions): Promise<void> {
-  const { chatUseCase } = opts;
+  const { chatUseCase, getAiUsageUseCase } = opts;
   const verifyAuth = (fastify as any).verifyAuth;
+  const verifyJWT = (fastify as any).verifyJWT;
 
   // ── POST /v1/ai/chat ────────────────────────────────────────────────
   fastify.post('/chat', {
@@ -120,6 +124,81 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
         userAgent: request.headers['user-agent'],
       });
 
+      return reply.status(HTTP_STATUS.OK).send(result);
+    },
+  });
+
+  // ── GET /v1/ai/usage ─────────────────────────────────────────────────
+  fastify.get('/usage', {
+    schema: {
+      tags: ['AI'],
+      summary: 'AI usage history',
+      description: 'Paginated list of AI usage logs for the authenticated user, with token and cost summary.',
+      security: [{ BearerAuth: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+          from: { type: 'string', format: 'date-time', description: 'ISO 8601 start date (inclusive)' },
+          to: { type: 'string', format: 'date-time', description: 'ISO 8601 end date (inclusive)' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  userId: { type: ['string', 'null'] },
+                  requestId: { type: 'string' },
+                  model: { type: 'string' },
+                  inputTokens: { type: 'integer' },
+                  outputTokens: { type: 'integer' },
+                  totalTokens: { type: 'integer' },
+                  estimatedCostUsd: { type: 'number' },
+                  stream: { type: 'boolean' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
+                required: ['id', 'requestId', 'model', 'inputTokens', 'outputTokens', 'totalTokens', 'estimatedCostUsd', 'stream', 'createdAt'],
+              },
+            },
+            pagination: {
+              type: 'object',
+              properties: {
+                page: { type: 'integer' },
+                limit: { type: 'integer' },
+                total: { type: 'integer' },
+                totalPages: { type: 'integer' },
+              },
+              required: ['page', 'limit', 'total', 'totalPages'],
+            },
+            summary: {
+              type: 'object',
+              properties: {
+                totalInputTokens: { type: 'integer' },
+                totalOutputTokens: { type: 'integer' },
+                totalTokens: { type: 'integer' },
+                totalCostUsd: { type: 'number' },
+              },
+              required: ['totalInputTokens', 'totalOutputTokens', 'totalTokens', 'totalCostUsd'],
+            },
+          },
+          required: ['data', 'pagination', 'summary'],
+        },
+        401: ErrorResponse,
+        422: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const query = AiUsageQuerySchema.parse(request.query);
+      const result = await getAiUsageUseCase.execute(userId, query);
       return reply.status(HTTP_STATUS.OK).send(result);
     },
   });

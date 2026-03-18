@@ -29,7 +29,7 @@ export class UpdateMeUseCase {
       const existing = await this.userRepo.findByEmail(input.email);
       if (existing) throw new UserAlreadyExistsError();
       updates.email = input.email;
-      auditMetadata.emailChanged = true;
+      auditMetadata['emailChanged'] = true;
     }
 
     // ── Password change ──────────────────────────────────────────────
@@ -37,14 +37,14 @@ export class UpdateMeUseCase {
       const match = await bcrypt.compare(input.currentPassword!, user.passwordHash);
       if (!match) throw new InvalidCredentialsError();
       updates.passwordHash = await bcrypt.hash(input.newPassword, env.BCRYPT_ROUNDS);
-      auditMetadata.passwordChanged = true;
+      auditMetadata['passwordChanged'] = true;
     }
 
     const updated = await this.userRepo.update(userId, updates);
 
     await this.auditRepo.create({
       userId,
-      action: auditMetadata.passwordChanged ? 'PASSWORD_CHANGED' : 'RESOURCE_UPDATED',
+      action: auditMetadata['passwordChanged'] ? 'PASSWORD_CHANGED' : 'RESOURCE_UPDATED',
       resourceType: 'user',
       resourceId: userId,
       ipAddress: ctx.ipAddress,

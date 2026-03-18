@@ -5,6 +5,7 @@ import type { IAnthropicClient, ChatParams, ChatResult } from '../../../../src/i
 import type { CostTracker } from '../../../../src/application/services/CostTracker.js';
 import type { ModelRouter } from '../../../../src/application/services/ModelRouter.js';
 import type { IAuditLogRepository } from '../../../../src/domain/repositories/IAuditLogRepository.js';
+import type { IAiUsageLogRepository } from '../../../../src/domain/repositories/IAiUsageLogRepository.js';
 
 const MOCK_RESULT: ChatResult = {
   id: 'msg_test_123',
@@ -48,11 +49,19 @@ function makeAuditRepo(): IAuditLogRepository {
   } as unknown as IAuditLogRepository;
 }
 
+function makeUsageRepo(): IAiUsageLogRepository {
+  return {
+    create: vi.fn().mockResolvedValue(undefined),
+    findByUserId: vi.fn().mockResolvedValue({ data: [], total: 0 }),
+  } as unknown as IAiUsageLogRepository;
+}
+
 describe('ChatUseCase', () => {
   let anthropic: IAnthropicClient;
   let costTracker: CostTracker;
   let modelRouter: ModelRouter;
   let auditRepo: IAuditLogRepository;
+  let usageRepo: IAiUsageLogRepository;
   let useCase: ChatUseCase;
 
   beforeEach(() => {
@@ -60,7 +69,8 @@ describe('ChatUseCase', () => {
     costTracker = makeCostTracker();
     modelRouter = makeModelRouter();
     auditRepo = makeAuditRepo();
-    useCase = new ChatUseCase(anthropic, costTracker, modelRouter, auditRepo);
+    usageRepo = makeUsageRepo();
+    useCase = new ChatUseCase(anthropic, costTracker, modelRouter, auditRepo, usageRepo);
   });
 
   describe('execute()', () => {
@@ -102,6 +112,20 @@ describe('ChatUseCase', () => {
         expect.objectContaining({ userId: 'user1', action: 'AI_CHAT_REQUEST', metadata: expect.objectContaining({ stream: false }) }),
       );
     });
+
+    it('persists usage log with correct fields', async () => {
+      await useCase.execute('user1', input);
+      expect(usageRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user1',
+          requestId: MOCK_RESULT.id,
+          model: MOCK_RESULT.model,
+          inputTokens: MOCK_RESULT.inputTokens,
+          outputTokens: MOCK_RESULT.outputTokens,
+          stream: false,
+        }),
+      );
+    });
   });
 
   describe('executeStream()', () => {
@@ -121,6 +145,15 @@ describe('ChatUseCase', () => {
     it('does NOT check budget internally (caller is responsible)', async () => {
       for await (const _ of useCase.executeStream('user1', input)) { /* drain */ }
       expect(costTracker.checkBudget).not.toHaveBeenCalled();
+    });
+
+    it('persists stream usage log after completion', async () => {
+      for await (const _ of useCase.executeStream('user1', input)) { /* drain */ }
+      // Fire-and-forget; flush microtasks before asserting
+      await Promise.resolve();
+      expect(usageRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user1', stream: true, inputTokens: 10, outputTokens: 8 }),
+      );
     });
   });
 
