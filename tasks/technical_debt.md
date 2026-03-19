@@ -6,15 +6,9 @@ Multi-session support implemented: Redis hash per userId (field = sessionId), co
 
 ---
 
-## TD-002: API Key Scopes Not Implemented
+## ~~TD-002: API Key Scopes Not Implemented~~ — RESOLVED 2026-03-19
 
-**Added:** 2026-03-17
-**Severity:** Low (for MVP)
-**Area:** Authorization / API Keys
-
-All API keys currently grant full user-level permissions. No per-key scope restriction.
-
-**Remediation:** Add a `scopes` JSON column to the `api_keys` table. Enforce scope checks in the RBAC middleware.
+Scopes implemented: `ai:chat`, `ai:usage`, `keys:read`, `keys:write`, `users:read`. Empty scopes = wildcard (backward compatible). `requireScope(scope)` decorator in auth plugin; 403 KEY_004 on insufficient scope.
 
 ---
 
