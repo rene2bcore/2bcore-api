@@ -1,14 +1,8 @@
 # Technical Debt Register
 
-## TD-001: Single Refresh Token Per User
+## ~~TD-001: Single Refresh Token Per User~~ — RESOLVED 2026-03-18
 
-**Added:** 2026-03-17
-**Severity:** Medium
-**Area:** Authentication / Session Management
-
-Current refresh token store uses `userId` as the key, meaning only one active session per user is supported. A second login invalidates the previous session's refresh token silently.
-
-**Remediation:** Store refresh tokens in a hash keyed by `userId:sessionId`. Requires session ID tracking across the token pair lifecycle.
+Multi-session support implemented: Redis hash per userId (field = sessionId), cookie format `<sessionId>.<refreshToken>`, `sid` claim in JWT, per-session revocation on logout. New routes: `GET /v1/auth/sessions`, `DELETE /v1/auth/sessions/:sessionId`.
 
 ---
 

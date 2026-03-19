@@ -2,7 +2,6 @@ import { IUserRepository } from '../../../domain/repositories/IUserRepository.js
 import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepository.js';
 import { AuthService, TokenPair } from '../../services/AuthService.js';
 import { TokenRevokedError, NotFoundError } from '../../../domain/errors/index.js';
-import { sha256 } from '../../../shared/utils/crypto.js';
 
 export interface RefreshContext {
   ipAddress?: string | undefined;
@@ -18,7 +17,8 @@ export class RefreshTokenUseCase {
 
   async execute(
     userId: string,
-    refreshToken: string,
+    /** Cookie value: `<sessionId>.<refreshToken>` */
+    cookieValue: string,
     ctx: RefreshContext,
   ): Promise<TokenPair> {
     const user = await this.userRepo.findById(userId);
@@ -26,21 +26,30 @@ export class RefreshTokenUseCase {
       throw new NotFoundError('User');
     }
 
-    const refreshHash = sha256(refreshToken);
-    const isValid = await this.authService.verifyRefreshToken(userId, refreshToken);
+    const parsed = this.authService.parseRefreshCookie(cookieValue);
+    if (!parsed) {
+      throw new TokenRevokedError();
+    }
+    const { sessionId, refreshToken } = parsed;
+
+    const isValid = await this.authService.verifyRefreshToken(userId, sessionId, refreshToken);
     if (!isValid) {
       throw new TokenRevokedError();
     }
 
-    // Rotate: revoke old, issue new
-    await this.authService.revokeRefreshToken(userId);
-    const newTokenPair = await this.authService.issueTokenPair(userId, user.email, user.role);
+    // Rotate: revoke old session, issue new one
+    await this.authService.revokeSession(userId, sessionId);
+    const newTokenPair = await this.authService.issueTokenPair(userId, user.email, user.role, {
+      ...(ctx.ipAddress !== undefined && { ipAddress: ctx.ipAddress }),
+      ...(ctx.userAgent !== undefined && { userAgent: ctx.userAgent }),
+    });
 
     await this.auditRepo.create({
       userId,
       action: 'TOKEN_REFRESHED',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
+      metadata: { oldSessionId: sessionId, newSessionId: newTokenPair.sessionId },
     });
 
     return newTokenPair;

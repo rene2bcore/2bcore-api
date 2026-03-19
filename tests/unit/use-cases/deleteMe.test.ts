@@ -16,6 +16,8 @@ function makeUser(overrides: Partial<User> = {}): User {
     passwordHash: KNOWN_HASH,
     role: 'USER',
     isActive: true,
+    emailVerified: true,
+    emailVerifiedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -43,9 +45,10 @@ describe('DeleteMeUseCase', () => {
       verifyAccessToken: vi.fn(),
       revokeAccessToken: vi.fn().mockResolvedValue(undefined),
       revokeRefreshToken: vi.fn().mockResolvedValue(undefined),
+      revokeSession: vi.fn().mockResolvedValue(undefined),
       verifyRefreshToken: vi.fn(),
-      rotateRefreshToken: vi.fn(),
-      getRefreshTokenKey: vi.fn(),
+      parseRefreshCookie: vi.fn(),
+      listSessions: vi.fn(),
     } as unknown as AuthService;
     auditRepo = {
       create: vi.fn().mockResolvedValue({}),

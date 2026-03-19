@@ -3,6 +3,7 @@ import { AuthService } from '../../services/AuthService.js';
 
 export interface LogoutContext {
   userId: string;
+  sessionId: string;
   accessToken: string;
   ipAddress?: string | undefined;
   userAgent?: string | undefined;
@@ -15,16 +16,17 @@ export class LogoutUseCase {
   ) {}
 
   async execute(ctx: LogoutContext): Promise<void> {
-    // Blacklist the current access token
+    // Blacklist current access token (prevents reuse within remaining TTL)
     await this.authService.revokeAccessToken(ctx.accessToken);
-    // Revoke the refresh token
-    await this.authService.revokeRefreshToken(ctx.userId);
+    // Revoke only the current session (other sessions remain active)
+    await this.authService.revokeSession(ctx.userId, ctx.sessionId);
 
     await this.auditRepo.create({
       userId: ctx.userId,
       action: 'USER_LOGOUT',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
+      metadata: { sessionId: ctx.sessionId },
     });
   }
 }

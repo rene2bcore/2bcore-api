@@ -47,6 +47,8 @@ import { CostTracker } from '../../application/services/CostTracker.js';
 import { LoginUseCase } from '../../application/use-cases/auth/login.js';
 import { RefreshTokenUseCase } from '../../application/use-cases/auth/refresh.js';
 import { LogoutUseCase } from '../../application/use-cases/auth/logout.js';
+import { ListSessionsUseCase } from '../../application/use-cases/auth/listSessions.js';
+import { RevokeSessionUseCase } from '../../application/use-cases/auth/revokeSession.js';
 import { SendVerificationEmailUseCase } from '../../application/use-cases/auth/sendVerificationEmail.js';
 import { VerifyEmailUseCase } from '../../application/use-cases/auth/verifyEmail.js';
 import { ForgotPasswordUseCase } from '../../application/use-cases/auth/forgotPassword.js';
@@ -195,6 +197,8 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const loginUseCase = new LoginUseCase(userRepo, authService, auditRepo);
   const refreshUseCase = new RefreshTokenUseCase(userRepo, authService, auditRepo);
   const logoutUseCase = new LogoutUseCase(authService, auditRepo);
+  const listSessionsUseCase = new ListSessionsUseCase(authService);
+  const revokeSessionUseCase = new RevokeSessionUseCase(authService, auditRepo);
   const sendVerificationEmailUseCase = new SendVerificationEmailUseCase(userRepo, emailVerificationRepo, emailService);
   const verifyEmailUseCase = new VerifyEmailUseCase(userRepo, emailVerificationRepo, auditRepo);
   const forgotPasswordUseCase = new ForgotPasswordUseCase(userRepo, passwordResetRepo, emailService, auditRepo);
@@ -280,6 +284,8 @@ export async function buildApp(overrides: AppOverrides = {}) {
     loginUseCase,
     refreshUseCase,
     logoutUseCase,
+    listSessionsUseCase,
+    revokeSessionUseCase,
     sendVerificationEmailUseCase,
     verifyEmailUseCase,
     forgotPasswordUseCase,

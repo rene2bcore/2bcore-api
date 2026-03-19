@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { LoginUseCase } from '../../../application/use-cases/auth/login.js';
 import { RefreshTokenUseCase } from '../../../application/use-cases/auth/refresh.js';
 import { LogoutUseCase } from '../../../application/use-cases/auth/logout.js';
+import { ListSessionsUseCase } from '../../../application/use-cases/auth/listSessions.js';
+import { RevokeSessionUseCase } from '../../../application/use-cases/auth/revokeSession.js';
 import { SendVerificationEmailUseCase } from '../../../application/use-cases/auth/sendVerificationEmail.js';
 import { VerifyEmailUseCase } from '../../../application/use-cases/auth/verifyEmail.js';
 import { ForgotPasswordUseCase } from '../../../application/use-cases/auth/forgotPassword.js';
@@ -20,6 +22,8 @@ interface AuthRoutesOptions {
   loginUseCase: LoginUseCase;
   refreshUseCase: RefreshTokenUseCase;
   logoutUseCase: LogoutUseCase;
+  listSessionsUseCase: ListSessionsUseCase;
+  revokeSessionUseCase: RevokeSessionUseCase;
   sendVerificationEmailUseCase: SendVerificationEmailUseCase;
   verifyEmailUseCase: VerifyEmailUseCase;
   forgotPasswordUseCase: ForgotPasswordUseCase;
@@ -32,8 +36,9 @@ const TokenResponse = {
     accessToken: { type: 'string' },
     tokenType: { type: 'string', enum: ['Bearer'] },
     expiresIn: { type: 'number', description: 'Seconds until the access token expires' },
+    sessionId: { type: 'string', description: 'Active session ID' },
   },
-  required: ['accessToken', 'tokenType', 'expiresIn'],
+  required: ['accessToken', 'tokenType', 'expiresIn', 'sessionId'],
 } as const;
 
 const ErrorResponse = { $ref: 'ErrorResponse#' };
@@ -43,11 +48,36 @@ const authRateLimit = {
   timeWindow: env.RATE_LIMIT_AUTH_WINDOW_MS,
 };
 
+const SessionSchema = {
+  type: 'object',
+  properties: {
+    sessionId: { type: 'string' },
+    createdAt: { type: 'string', format: 'date-time' },
+    expiresAt: { type: 'string', format: 'date-time' },
+    ipAddress: { type: 'string' },
+    userAgent: { type: 'string' },
+  },
+  required: ['sessionId', 'createdAt', 'expiresAt'],
+} as const;
+
+function setRefreshCookie(reply: any, cookieValue: string): void {
+  const isProduction = env.NODE_ENV === 'production';
+  reply.setCookie(REFRESH_TOKEN_COOKIE, cookieValue, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: `/${env.API_VERSION}/auth`,
+    maxAge: 7 * 24 * 60 * 60,
+  });
+}
+
 export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptions): Promise<void> {
   const {
     loginUseCase,
     refreshUseCase,
     logoutUseCase,
+    listSessionsUseCase,
+    revokeSessionUseCase,
     sendVerificationEmailUseCase,
     verifyEmailUseCase,
     forgotPasswordUseCase,
@@ -101,20 +131,13 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
         userAgent: request.headers['user-agent'],
       });
 
-      const isProduction = env.NODE_ENV === 'production';
-
-      reply.setCookie(REFRESH_TOKEN_COOKIE, result.refreshToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: 'strict',
-        path: `/${env.API_VERSION}/auth`,
-        maxAge: 7 * 24 * 60 * 60, // 7 days
-      });
+      setRefreshCookie(reply, result.refreshCookie);
 
       return reply.status(HTTP_STATUS.OK).send({
         accessToken: result.accessToken,
         tokenType: 'Bearer' as const,
         expiresIn: result.accessExpiresIn,
+        sessionId: result.sessionId,
         user: result.user,
       });
     },
@@ -125,7 +148,7 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
     schema: {
       tags: ['Auth'],
       summary: 'Refresh access token',
-      description: 'Exchange the HttpOnly refresh_token cookie for a new access token. Rotates the refresh token.',
+      description: 'Exchange the HttpOnly refresh_token cookie for a new access token. Rotates the session.',
       body: {
         type: 'object',
         required: ['userId'],
@@ -143,35 +166,28 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
       rateLimit: { ...authRateLimit, keyGenerator: (req: { ip: string }) => `auth_refresh:${req.ip}` },
     },
     handler: async (request, reply) => {
-      const refreshToken = request.cookies?.[REFRESH_TOKEN_COOKIE];
+      const cookieValue = request.cookies?.[REFRESH_TOKEN_COOKIE];
       const userId = (request.body as { userId?: string })?.userId;
 
-      if (!refreshToken || !userId) {
+      if (!cookieValue || !userId) {
         return reply.status(HTTP_STATUS.UNAUTHORIZED).send({
           error: 'Missing refresh token or user ID',
           code: 'AUTH_005',
         });
       }
 
-      const result = await refreshUseCase.execute(userId, refreshToken, {
+      const result = await refreshUseCase.execute(userId, cookieValue, {
         ipAddress: request.ip,
         userAgent: request.headers['user-agent'],
       });
 
-      const isProduction = env.NODE_ENV === 'production';
-
-      reply.setCookie(REFRESH_TOKEN_COOKIE, result.refreshToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: 'strict',
-        path: `/${env.API_VERSION}/auth`,
-        maxAge: 7 * 24 * 60 * 60,
-      });
+      setRefreshCookie(reply, result.refreshCookie);
 
       return reply.status(HTTP_STATUS.OK).send({
         accessToken: result.accessToken,
         tokenType: 'Bearer' as const,
         expiresIn: result.accessExpiresIn,
+        sessionId: result.sessionId,
       });
     },
   });
@@ -181,7 +197,7 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
     schema: {
       tags: ['Auth'],
       summary: 'Logout',
-      description: 'Revoke the current access token and clear the refresh token cookie.',
+      description: 'Revoke the current session and clear the refresh token cookie. Other sessions remain active.',
       security: [{ BearerAuth: [] }],
       response: {
         204: { type: 'null', description: 'Successfully logged out' },
@@ -195,6 +211,7 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
 
       await logoutUseCase.execute({
         userId: user.sub,
+        sessionId: user.sid,
         accessToken,
         ipAddress: request.ip,
         userAgent: request.headers['user-agent'],
@@ -202,6 +219,64 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
 
       reply.clearCookie(REFRESH_TOKEN_COOKIE, {
         path: `/${env.API_VERSION}/auth`,
+      });
+
+      return reply.status(HTTP_STATUS.NO_CONTENT).send();
+    },
+  });
+
+  // ── GET /sessions ──────────────────────────────────────────────────
+  fastify.get('/sessions', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'List active sessions',
+      description: 'Returns all active sessions for the authenticated user.',
+      security: [{ BearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: SessionSchema },
+          },
+          required: ['data'],
+        },
+        401: ErrorResponse,
+      },
+    },
+    preHandler: [(fastify as any).verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const sessions = await listSessionsUseCase.execute(userId);
+      return reply.status(HTTP_STATUS.OK).send({ data: sessions });
+    },
+  });
+
+  // ── DELETE /sessions/:sessionId ───────────────────────────────────
+  fastify.delete('/sessions/:sessionId', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Revoke a session',
+      description: 'Revoke a specific session by its ID. Users can only revoke their own sessions.',
+      security: [{ BearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['sessionId'],
+        properties: { sessionId: { type: 'string' } },
+      },
+      response: {
+        204: { type: 'null', description: 'Session revoked' },
+        401: ErrorResponse,
+      },
+    },
+    preHandler: [(fastify as any).verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const { sessionId } = request.params as { sessionId: string };
+
+      await revokeSessionUseCase.execute(userId, sessionId, {
+        requestingUserId: userId,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
       });
 
       return reply.status(HTTP_STATUS.NO_CONTENT).send();

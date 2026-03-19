@@ -7,7 +7,7 @@ import { UnauthorizedError, ApiKeyInvalidError, ApiKeyRevokedError, ForbiddenErr
 
 declare module 'fastify' {
   interface FastifyRequest {
-    user?: AccessTokenPayload & { type: 'jwt' | 'apikey' };
+    user?: AccessTokenPayload & { type: 'jwt' | 'apikey'; sid: string };
   }
 }
 
@@ -58,6 +58,7 @@ export const authPlugin = fp(async (fastify: FastifyInstance, opts: AuthPluginOp
       email: '',
       role: 'USER',
       jti: key.id,
+      sid: '',
       iat: 0,
       exp: 0,
       type: 'apikey',

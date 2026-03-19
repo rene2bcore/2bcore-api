@@ -22,7 +22,7 @@
 
 ## Key Design Decisions
 
-- Auth: JWT RS256 (access, 15m) + rotating refresh tokens (7d, Redis) + API Keys (SHA-256 hash, DB)
+- Auth: JWT RS256 (access, 15m, includes `sid` session claim) + rotating refresh tokens (7d, Redis hash per user) + API Keys (SHA-256 hash, DB)
 - RBAC: Two roles (USER / ADMIN). `requireAdmin` decorator enforces 403. Role is in JWT payload.
 - Rate limiting: Redis sliding window — global per-IP, stricter per auth endpoint, tighter per AI endpoint
 - AI tracking: Dual-layer — `AiUsageLog` table (billing) + `AuditLog` (security). Budget via Redis counters.
@@ -37,9 +37,11 @@
 
 | Route | Auth | Description |
 |---|---|---|
-| `POST /v1/auth/login` | — | Issue JWT + refresh token |
-| `POST /v1/auth/refresh` | cookie | Rotate refresh token |
-| `POST /v1/auth/logout` | JWT | Blacklist access token |
+| `POST /v1/auth/login` | — | Issue JWT + refresh token; returns `sessionId` |
+| `POST /v1/auth/refresh` | cookie (`<sid>.<token>`) | Rotate session (per-session) |
+| `POST /v1/auth/logout` | JWT | Revoke current session only |
+| `GET /v1/auth/sessions` | JWT | List active sessions |
+| `DELETE /v1/auth/sessions/:id` | JWT | Revoke specific session |
 | `POST /v1/auth/verify-email` | — | Consume one-time email verification token (24h TTL) |
 | `POST /v1/auth/resend-verification` | — | Resend verification email (prevents enumeration) |
 | `POST /v1/auth/forgot-password` | — | Send password reset email (always 204) |

@@ -50,14 +50,17 @@ export class LoginUseCase {
       throw new InvalidCredentialsError();
     }
 
-    const tokenPair = await this.authService.issueTokenPair(user.id, user.email, user.role);
+    const tokenPair = await this.authService.issueTokenPair(user.id, user.email, user.role, {
+      ...(ctx.ipAddress !== undefined && { ipAddress: ctx.ipAddress }),
+      ...(ctx.userAgent !== undefined && { userAgent: ctx.userAgent }),
+    });
 
     await this.auditRepo.create({
       userId: user.id,
       action: 'USER_LOGIN',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-      metadata: { success: true },
+      metadata: { success: true, sessionId: tokenPair.sessionId },
     });
 
     return {

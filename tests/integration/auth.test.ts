@@ -36,6 +36,7 @@ describe('Auth routes', () => {
       expect(body.accessToken).toBeTypeOf('string');
       expect(body.tokenType).toBe('Bearer');
       expect(body.expiresIn).toBe(900);
+      expect(body.sessionId).toBeTypeOf('string');
       expect(body.user.id).toBe(active.user.id);
       expect(body.user.email).toBe(active.user.email);
       expect(body.user.role).toBe('USER');
@@ -276,6 +277,113 @@ describe('Auth routes', () => {
         method: 'POST',
         url: '/v1/auth/logout',
         headers: { authorization: 'Bearer not.a.real.jwt' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('logout only revokes the current session — other sessions remain active', async () => {
+      // Session A
+      const loginA = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: active.user.email, password: active.password },
+      });
+      const tokenA = loginA.json().accessToken as string;
+      const cookieA = extractRefreshCookie(loginA)!;
+
+      // Session B
+      const loginB = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: active.user.email, password: active.password },
+      });
+      const cookieB = extractRefreshCookie(loginB)!;
+
+      // Logout session A
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/logout',
+        headers: { authorization: `Bearer ${tokenA}` },
+      });
+
+      // Session B's refresh token should still work
+      const refreshB = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: cookiesFor(cookieB),
+        payload: { userId: active.user.id },
+      });
+      expect(refreshB.statusCode).toBe(200);
+    });
+  });
+
+  // ── GET /v1/auth/sessions ────────────────────────────────────────────
+
+  describe('GET /v1/auth/sessions', () => {
+    it('returns 200 with array of active sessions', async () => {
+      const login = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: active.user.email, password: active.password },
+      });
+      const token = login.json().accessToken as string;
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/auth/sessions',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.data.length).toBeGreaterThanOrEqual(1);
+      expect(body.data[0]).toHaveProperty('sessionId');
+      expect(body.data[0]).toHaveProperty('createdAt');
+      expect(body.data[0]).toHaveProperty('expiresAt');
+    });
+
+    it('returns 401 when not authenticated', async () => {
+      const res = await app.inject({ method: 'GET', url: '/v1/auth/sessions' });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // ── DELETE /v1/auth/sessions/:sessionId ──────────────────────────────
+
+  describe('DELETE /v1/auth/sessions/:sessionId', () => {
+    it('revokes a specific session — that session can no longer refresh', async () => {
+      // Login to get session
+      const login = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: active.user.email, password: active.password },
+      });
+      const token = login.json().accessToken as string;
+      const sessionId = login.json().sessionId as string;
+      const cookie = extractRefreshCookie(login)!;
+
+      // Revoke the session
+      const revokeRes = await app.inject({
+        method: 'DELETE',
+        url: `/v1/auth/sessions/${sessionId}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(revokeRes.statusCode).toBe(204);
+
+      // The refresh token for that session should no longer work
+      const refreshRes = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: cookiesFor(cookie),
+        payload: { userId: active.user.id },
+      });
+      expect(refreshRes.statusCode).toBe(401);
+    });
+
+    it('returns 401 when not authenticated', async () => {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/v1/auth/sessions/some-session-id',
       });
       expect(res.statusCode).toBe(401);
     });
