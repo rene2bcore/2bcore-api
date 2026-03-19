@@ -3,6 +3,8 @@ import { IUserRepository } from '../../../domain/repositories/IUserRepository.js
 import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepository.js';
 import { AuthService } from '../../services/AuthService.js';
 import { NotFoundError, InvalidCredentialsError } from '../../../domain/errors/index.js';
+import type { IWebhookService } from '../../../domain/services/IWebhookService.js';
+import { WEBHOOK_EVENTS } from '../../../shared/constants/index.js';
 
 export interface DeleteMeContext {
   accessToken: string;
@@ -15,6 +17,7 @@ export class DeleteMeUseCase {
     private readonly userRepo: IUserRepository,
     private readonly authService: AuthService,
     private readonly auditRepo: IAuditLogRepository,
+    private readonly webhookService?: IWebhookService,
   ) {}
 
   async execute(userId: string, password: string, ctx: DeleteMeContext): Promise<void> {
@@ -23,6 +26,12 @@ export class DeleteMeUseCase {
 
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) throw new InvalidCredentialsError();
+
+    // Emit webhook before deletion — user row will be gone after
+    this.webhookService?.emit(userId, WEBHOOK_EVENTS.USER_DELETED, {
+      id: userId,
+      email: user.email,
+    });
 
     // Write audit log before deletion — AuditLog.userId → SetNull on cascade
     await this.auditRepo.create({

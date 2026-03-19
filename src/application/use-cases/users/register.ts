@@ -7,6 +7,8 @@ import { RegisterUserInput } from '../../dtos/user.dto.js';
 import { env } from '../../../shared/config/env.js';
 import { logger } from '../../../infrastructure/observability/logger.js';
 import type { SendVerificationEmailUseCase } from '../auth/sendVerificationEmail.js';
+import type { IWebhookService } from '../../../domain/services/IWebhookService.js';
+import { WEBHOOK_EVENTS } from '../../../shared/constants/index.js';
 
 export interface RegisterContext {
   ipAddress?: string | undefined;
@@ -18,6 +20,7 @@ export class RegisterUserUseCase {
     private readonly userRepo: IUserRepository,
     private readonly auditRepo: IAuditLogRepository,
     private readonly sendVerificationEmailUseCase?: SendVerificationEmailUseCase,
+    private readonly webhookService?: IWebhookService,
   ) {}
 
   async execute(input: RegisterUserInput, ctx: RegisterContext): Promise<UserPublic> {
@@ -45,6 +48,13 @@ export class RegisterUserUseCase {
         logger.warn({ err, userId: user.id }, 'Failed to send verification email after registration');
       });
     }
+
+    this.webhookService?.emit(user.id, WEBHOOK_EVENTS.USER_CREATED, {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt.toISOString(),
+    });
 
     return toPublicUser(user);
   }

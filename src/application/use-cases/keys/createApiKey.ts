@@ -3,11 +3,14 @@ import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepos
 import { generateApiKey } from '../../../shared/utils/crypto.js';
 import { env } from '../../../shared/config/env.js';
 import { CreateApiKeyInput, CreateApiKeyOutput } from '../../dtos/apikey.dto.js';
+import type { IWebhookService } from '../../../domain/services/IWebhookService.js';
+import { WEBHOOK_EVENTS } from '../../../shared/constants/index.js';
 
 export class CreateApiKeyUseCase {
   constructor(
     private readonly apiKeyRepo: IApiKeyRepository,
     private readonly auditRepo: IAuditLogRepository,
+    private readonly webhookService?: IWebhookService,
   ) {}
 
   async execute(userId: string, input: CreateApiKeyInput): Promise<CreateApiKeyOutput> {
@@ -29,6 +32,13 @@ export class CreateApiKeyUseCase {
       resourceType: 'ApiKey',
       resourceId: apiKey.id,
       metadata: { name: input.name, scopes: apiKey.scopes },
+    });
+
+    this.webhookService?.emit(userId, WEBHOOK_EVENTS.KEY_CREATED, {
+      id: apiKey.id,
+      name: apiKey.name,
+      prefix,
+      scopes: apiKey.scopes,
     });
 
     return {

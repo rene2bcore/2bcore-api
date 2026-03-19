@@ -52,6 +52,19 @@ export const ERROR_CODES = {
   INTERNAL_ERROR: 'GEN_500',
 } as const;
 
+// Webhook events — empty subscriptions array means subscribe to all (wildcard)
+export const WEBHOOK_EVENTS = {
+  USER_CREATED: 'user.created',
+  USER_UPDATED: 'user.updated',
+  USER_DELETED: 'user.deleted',
+  KEY_CREATED: 'key.created',
+  KEY_REVOKED: 'key.revoked',
+  AI_CHAT_COMPLETED: 'ai.chat_completed',
+} as const;
+
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[keyof typeof WEBHOOK_EVENTS];
+export const ALL_WEBHOOK_EVENTS: WebhookEvent[] = Object.values(WEBHOOK_EVENTS) as WebhookEvent[];
+
 // Defined API key scopes — empty array means wildcard (full access)
 export const API_KEY_SCOPES = {
   AI_CHAT: 'ai:chat',

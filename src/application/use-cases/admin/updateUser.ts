@@ -3,6 +3,8 @@ import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepos
 import { UserPublic, toPublicUser } from '../../../domain/entities/User.js';
 import { NotFoundError } from '../../../domain/errors/index.js';
 import { AdminUpdateUserInput } from '../../dtos/admin.dto.js';
+import type { IWebhookService } from '../../../domain/services/IWebhookService.js';
+import { WEBHOOK_EVENTS } from '../../../shared/constants/index.js';
 
 export interface UpdateUserContext {
   adminId: string;
@@ -14,6 +16,7 @@ export class UpdateUserUseCase {
   constructor(
     private readonly userRepo: IUserRepository,
     private readonly auditRepo: IAuditLogRepository,
+    private readonly webhookService?: IWebhookService,
   ) {}
 
   async execute(targetUserId: string, input: AdminUpdateUserInput, ctx: UpdateUserContext): Promise<UserPublic> {
@@ -33,6 +36,14 @@ export class UpdateUserUseCase {
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
       metadata: { adminAction: true, changes: input },
+    });
+
+    this.webhookService?.emit(targetUserId, WEBHOOK_EVENTS.USER_UPDATED, {
+      id: targetUserId,
+      email: updated.email,
+      role: updated.role,
+      isActive: updated.isActive,
+      changes: input,
     });
 
     return toPublicUser(updated);

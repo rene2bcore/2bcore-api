@@ -4,6 +4,8 @@ import type { IAiUsageLogRepository } from '../../../domain/repositories/IAiUsag
 import type { CostTracker } from '../../services/CostTracker.js';
 import type { ModelRouter } from '../../services/ModelRouter.js';
 import type { ChatInput, ChatOutput, ChatUsage } from '../../dtos/ai.dto.js';
+import type { IWebhookService } from '../../../domain/services/IWebhookService.js';
+import { WEBHOOK_EVENTS } from '../../../shared/constants/index.js';
 import { env } from '../../../shared/config/env.js';
 
 interface RequestContext {
@@ -22,6 +24,7 @@ export class ChatUseCase {
     private readonly modelRouter: ModelRouter,
     private readonly auditRepo: IAuditLogRepository,
     private readonly usageRepo: IAiUsageLogRepository,
+    private readonly webhookService?: IWebhookService,
   ) {}
 
   /**
@@ -69,12 +72,23 @@ export class ChatUseCase {
       }),
     ]);
 
-    return {
+    const output: ChatOutput = {
       id: result.id,
       model: result.model,
       content: result.content,
       usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, totalTokens, estimatedCostUsd },
     };
+
+    this.webhookService?.emit(userId, WEBHOOK_EVENTS.AI_CHAT_COMPLETED, {
+      requestId: result.id,
+      model: result.model,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      estimatedCostUsd,
+      stream: false,
+    });
+
+    return output;
   }
 
   /**
@@ -128,6 +142,15 @@ export class ChatUseCase {
         stream: true,
       }),
     ]);
+
+    this.webhookService?.emit(userId, WEBHOOK_EVENTS.AI_CHAT_COMPLETED, {
+      requestId: streamRequestId,
+      model,
+      inputTokens,
+      outputTokens,
+      estimatedCostUsd,
+      stream: true,
+    });
 
     yield { type: 'done', usage };
   }

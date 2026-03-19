@@ -28,6 +28,7 @@ model User {
   aiUsageLogs              AiUsageLog[]
   emailVerificationTokens  EmailVerificationToken[]
   passwordResetTokens      PasswordResetToken[]
+  webhookEndpoints         WebhookEndpoint[]
 
   @@index([email])
   @@map("users")
@@ -80,6 +81,42 @@ model ApiKey {
   @@index([userId])
   @@index([keyHash])
   @@map("api_keys")
+}
+
+model WebhookEndpoint {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  url       String    @db.VarChar(2048)
+  secret    String    @db.VarChar(128)
+  events    Json      @default("[]")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id           String   @id @default(cuid())
+  endpointId   String   @map("endpoint_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  payload      Json
+  statusCode   Int?     @map("status_code")
+  responseBody String?  @map("response_body") @db.Text
+  attempt      Int      @default(1)
+  success      Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("webhook_deliveries")
 }
 
 model AiUsageLog {

@@ -20,6 +20,7 @@ import { healthRoutes } from '../../infrastructure/http/routes/health.routes.js'
 import { aiRoutes } from '../../infrastructure/http/routes/ai.routes.js';
 import { usersRoutes } from '../../infrastructure/http/routes/users.routes.js';
 import { adminRoutes } from '../../infrastructure/http/routes/admin.routes.js';
+import { webhookRoutes } from '../../infrastructure/http/routes/webhooks.routes.js';
 
 // Infrastructure
 import { getPrismaClient } from '../../infrastructure/db/prisma.js';
@@ -39,6 +40,7 @@ import { PrismaAuditLogRepository } from '../../infrastructure/db/repositories/a
 import { PrismaAiUsageLogRepository } from '../../infrastructure/db/repositories/aiusagelog.repository.js';
 import { PrismaEmailVerificationRepository } from '../../infrastructure/db/repositories/emailverification.repository.js';
 import { PrismaPasswordResetRepository } from '../../infrastructure/db/repositories/passwordreset.repository.js';
+import { PrismaWebhookRepository } from '../../infrastructure/db/repositories/webhook.repository.js';
 
 // Services & Use Cases
 import { AuthService } from '../../application/services/AuthService.js';
@@ -68,6 +70,13 @@ import { RegisterUserUseCase } from '../../application/use-cases/users/register.
 import { GetMeUseCase } from '../../application/use-cases/users/getMe.js';
 import { UpdateMeUseCase } from '../../application/use-cases/users/updateMe.js';
 import { DeleteMeUseCase } from '../../application/use-cases/users/deleteMe.js';
+import { CreateWebhookEndpointUseCase } from '../../application/use-cases/webhooks/createEndpoint.js';
+import { ListWebhookEndpointsUseCase } from '../../application/use-cases/webhooks/listEndpoints.js';
+import { GetWebhookEndpointUseCase } from '../../application/use-cases/webhooks/getEndpoint.js';
+import { UpdateWebhookEndpointUseCase } from '../../application/use-cases/webhooks/updateEndpoint.js';
+import { DeleteWebhookEndpointUseCase } from '../../application/use-cases/webhooks/deleteEndpoint.js';
+import { ListWebhookDeliveriesUseCase } from '../../application/use-cases/webhooks/listDeliveries.js';
+import { WebhookDeliveryService } from '../../infrastructure/webhooks/WebhookDeliveryService.js';
 
 // Error types
 import { DomainError } from '../../domain/errors/index.js';
@@ -184,11 +193,13 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const aiUsageRepo = new PrismaAiUsageLogRepository(prisma);
   const emailVerificationRepo = new PrismaEmailVerificationRepository(prisma);
   const passwordResetRepo = new PrismaPasswordResetRepository(prisma);
+  const webhookRepo = new PrismaWebhookRepository(prisma);
 
   // ── Services ───────────────────────────────────────────────────────
   const authService = new AuthService(tokenBlacklist, refreshTokenStore);
   const modelRouter = new ModelRouter();
   const costTracker = new CostTracker(tokenBudgetStore, env.AI_MONTHLY_TOKEN_BUDGET);
+  const webhookService = new WebhookDeliveryService(webhookRepo);
 
   // ── Auth plugin ────────────────────────────────────────────────────
   await fastify.register(authPlugin, { authService, apiKeyRepo });
@@ -203,21 +214,27 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const verifyEmailUseCase = new VerifyEmailUseCase(userRepo, emailVerificationRepo, auditRepo);
   const forgotPasswordUseCase = new ForgotPasswordUseCase(userRepo, passwordResetRepo, emailService, auditRepo);
   const resetPasswordUseCase = new ResetPasswordUseCase(userRepo, passwordResetRepo, authService, auditRepo);
-  const createApiKeyUseCase = new CreateApiKeyUseCase(apiKeyRepo, auditRepo);
+  const createApiKeyUseCase = new CreateApiKeyUseCase(apiKeyRepo, auditRepo, webhookService);
   const listApiKeysUseCase = new ListApiKeysUseCase(apiKeyRepo);
-  const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
+  const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo, webhookService);
   const getApiKeyUseCase = new GetApiKeyUseCase(apiKeyRepo);
-  const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo, aiUsageRepo);
+  const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo, aiUsageRepo, webhookService);
   const getAiUsageUseCase = new GetAiUsageUseCase(aiUsageRepo);
   const listUsersUseCase = new ListUsersUseCase(userRepo);
   const getUserUseCase = new GetUserUseCase(userRepo);
-  const updateUserUseCase = new UpdateUserUseCase(userRepo, auditRepo);
-  const deleteUserUseCase = new DeleteUserUseCase(userRepo, authService, auditRepo);
+  const updateUserUseCase = new UpdateUserUseCase(userRepo, auditRepo, webhookService);
+  const deleteUserUseCase = new DeleteUserUseCase(userRepo, authService, auditRepo, webhookService);
   const getAllAiUsageUseCase = new GetAllAiUsageUseCase(aiUsageRepo);
-  const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo, sendVerificationEmailUseCase);
+  const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo, sendVerificationEmailUseCase, webhookService);
   const getMeUseCase = new GetMeUseCase(userRepo);
   const updateMeUseCase = new UpdateMeUseCase(userRepo, auditRepo);
-  const deleteMeUseCase = new DeleteMeUseCase(userRepo, authService, auditRepo);
+  const deleteMeUseCase = new DeleteMeUseCase(userRepo, authService, auditRepo, webhookService);
+  const createEndpointUseCase = new CreateWebhookEndpointUseCase(webhookRepo);
+  const listEndpointsUseCase = new ListWebhookEndpointsUseCase(webhookRepo);
+  const getEndpointUseCase = new GetWebhookEndpointUseCase(webhookRepo);
+  const updateEndpointUseCase = new UpdateWebhookEndpointUseCase(webhookRepo);
+  const deleteEndpointUseCase = new DeleteWebhookEndpointUseCase(webhookRepo);
+  const listDeliveriesUseCase = new ListWebhookDeliveriesUseCase(webhookRepo);
 
   // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -321,6 +338,16 @@ export async function buildApp(overrides: AppOverrides = {}) {
     updateUserUseCase,
     deleteUserUseCase,
     getAllAiUsageUseCase,
+  });
+
+  await fastify.register(webhookRoutes, {
+    prefix: `/${env.API_VERSION}/webhooks`,
+    createEndpointUseCase,
+    listEndpointsUseCase,
+    getEndpointUseCase,
+    updateEndpointUseCase,
+    deleteEndpointUseCase,
+    listDeliveriesUseCase,
   });
 
   return fastify;
