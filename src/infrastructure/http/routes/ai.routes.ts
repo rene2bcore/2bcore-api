@@ -5,6 +5,7 @@ import { ChatUseCase } from '../../../application/use-cases/ai/chat.js';
 import { GetAiUsageUseCase } from '../../../application/use-cases/ai/getUsage.js';
 import { HTTP_STATUS } from '../../../shared/constants/index.js';
 import { logger } from '../../observability/logger.js';
+import { aiRateLimitConfig } from '../plugins/rateLimit.plugin.js';
 
 interface AiRoutesOptions {
   chatUseCase: ChatUseCase;
@@ -20,6 +21,7 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
 
   // ── POST /v1/ai/chat ────────────────────────────────────────────────
   fastify.post('/chat', {
+    ...aiRateLimitConfig,
     schema: {
       tags: ['AI'],
       summary: 'Chat completion',

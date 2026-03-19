@@ -33,6 +33,8 @@ const envSchema = z.object({
   RATE_LIMIT_GLOBAL_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(10),
   RATE_LIMIT_AUTH_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
+  RATE_LIMIT_AI_MAX: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_AI_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
 
   // OpenTelemetry
   OTEL_SERVICE_NAME: z.string().default('2bcore-api'),

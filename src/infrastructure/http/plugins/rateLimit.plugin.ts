@@ -50,3 +50,19 @@ export const authRateLimitConfig = {
     },
   },
 };
+
+/**
+ * Per-user rate limit for AI endpoints.
+ * Tighter window to control token spend. Defaults: 20 req / 60 s per user.
+ * Override via RATE_LIMIT_AI_MAX and RATE_LIMIT_AI_WINDOW_MS env vars.
+ */
+export const aiRateLimitConfig = {
+  config: {
+    rateLimit: {
+      max: env.RATE_LIMIT_AI_MAX,
+      timeWindow: env.RATE_LIMIT_AI_WINDOW_MS,
+      keyGenerator: (request: { user?: { sub?: string }; ip: string }) =>
+        `ai:${request.user?.sub ?? request.ip}`,
+    },
+  },
+};
