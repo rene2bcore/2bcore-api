@@ -250,4 +250,63 @@ describe('API Keys routes', () => {
       expect(res.statusCode).toBe(401);
     });
   });
+
+  // ── GET /v1/keys/:id ───────────────────────────────────────────────
+
+  describe('GET /v1/keys/:id', () => {
+    it('returns 200 with key metadata for the owner', async () => {
+      const created = await createKey(primaryToken, 'Inspect Me');
+      const res = await app.inject({
+        method: 'GET',
+        url: `/v1/keys/${created.id}`,
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.id).toBe(created.id);
+      expect(body.name).toBe('Inspect Me');
+      expect(body).not.toHaveProperty('keyHash');
+      expect(body).toHaveProperty('isActive');
+      expect(body).toHaveProperty('prefix');
+    });
+
+    it('returns 200 via API key auth', async () => {
+      const created = await createKey(primaryToken, 'Self Inspect Key');
+      const res = await app.inject({
+        method: 'GET',
+        url: `/v1/keys/${created.id}`,
+        headers: { 'x-api-key': created.key },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('returns 403 when requesting another user\'s key', async () => {
+      const secondaryToken = await login(secondary);
+      const secondaryKey = await createKey(secondaryToken, 'Other Key');
+      const res = await app.inject({
+        method: 'GET',
+        url: `/v1/keys/${secondaryKey.id}`,
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('returns 404 for non-existent key', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/keys/nonexistent-key-id',
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('returns 401 without credentials', async () => {
+      const created = await createKey(primaryToken, 'Unauth Inspect');
+      const res = await app.inject({
+        method: 'GET',
+        url: `/v1/keys/${created.id}`,
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
 });

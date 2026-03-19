@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { CreateApiKeyUseCase } from '../../../application/use-cases/keys/createApiKey.js';
 import { ListApiKeysUseCase } from '../../../application/use-cases/keys/listApiKeys.js';
 import { RevokeApiKeyUseCase } from '../../../application/use-cases/keys/revokeApiKey.js';
+import { GetApiKeyUseCase } from '../../../application/use-cases/keys/getApiKey.js';
 import { CreateApiKeyInputSchema } from '../../../application/dtos/apikey.dto.js';
 import { HTTP_STATUS } from '../../../shared/constants/index.js';
 
@@ -9,6 +10,7 @@ interface KeysRoutesOptions {
   createApiKeyUseCase: CreateApiKeyUseCase;
   listApiKeysUseCase: ListApiKeysUseCase;
   revokeApiKeyUseCase: RevokeApiKeyUseCase;
+  getApiKeyUseCase: GetApiKeyUseCase;
 }
 
 const ErrorResponse = { $ref: 'ErrorResponse#' };
@@ -28,7 +30,7 @@ const ApiKeyMeta = {
 };
 
 export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptions): Promise<void> {
-  const { createApiKeyUseCase, listApiKeysUseCase, revokeApiKeyUseCase } = opts;
+  const { createApiKeyUseCase, listApiKeysUseCase, revokeApiKeyUseCase, getApiKeyUseCase } = opts;
 
   const verifyJWT = (fastify as any).verifyJWT;
   const verifyAuth = (fastify as any).verifyAuth;
@@ -97,6 +99,36 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
       const userId = request.user!.sub;
       const keys = await listApiKeysUseCase.execute(userId);
       return reply.status(HTTP_STATUS.OK).send({ data: keys });
+    },
+  });
+
+  // ── GET /keys/:id ──────────────────────────────────────────────────
+  fastify.get('/:id', {
+    schema: {
+      tags: ['API Keys'],
+      summary: 'Get API key',
+      description: 'Retrieve metadata for a single API key by ID. Raw key is never returned. JWT or API Key auth accepted.',
+      security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', description: 'API key ID' },
+        },
+      },
+      response: {
+        200: ApiKeyMeta,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+    },
+    preHandler: [verifyAuth],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const { id } = request.params as { id: string };
+      const result = await getApiKeyUseCase.execute(userId, id);
+      return reply.status(HTTP_STATUS.OK).send(result);
     },
   });
 

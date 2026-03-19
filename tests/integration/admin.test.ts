@@ -205,6 +205,56 @@ describe('Admin routes', () => {
     });
   });
 
+  // ── DELETE /v1/admin/users/:id ────────────────────────────────────
+
+  describe('DELETE /v1/admin/users/:id', () => {
+    it('returns 204 and hard-deletes the user', async () => {
+      const target = await seedTestUser({ role: 'USER' });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/v1/admin/users/${target.user.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(204);
+
+      // Confirm user no longer retrievable
+      const check = await app.inject({
+        method: 'GET',
+        url: `/v1/admin/users/${target.user.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(check.statusCode).toBe(404);
+    });
+
+    it('returns 404 for non-existent user', async () => {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/v1/admin/users/nonexistent_id',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('returns 403 for regular USER', async () => {
+      const target = await seedTestUser({ role: 'USER' });
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/v1/admin/users/${target.user.id}`,
+        headers: { authorization: `Bearer ${userToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('returns 401 without credentials', async () => {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/v1/admin/users/${regularUser.user.id}`,
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
   // ── GET /v1/admin/ai/usage ─────────────────────────────────────────
 
   describe('GET /v1/admin/ai/usage', () => {

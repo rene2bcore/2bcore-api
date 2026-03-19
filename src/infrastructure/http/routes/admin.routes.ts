@@ -3,6 +3,7 @@ import { AdminListUsersQuerySchema, AdminUpdateUserInputSchema, AdminListAiUsage
 import { ListUsersUseCase } from '../../../application/use-cases/admin/listUsers.js';
 import { GetUserUseCase } from '../../../application/use-cases/admin/getUser.js';
 import { UpdateUserUseCase } from '../../../application/use-cases/admin/updateUser.js';
+import { DeleteUserUseCase } from '../../../application/use-cases/admin/deleteUser.js';
 import { GetAllAiUsageUseCase } from '../../../application/use-cases/admin/getAllAiUsage.js';
 import { HTTP_STATUS } from '../../../shared/constants/index.js';
 
@@ -10,6 +11,7 @@ interface AdminRoutesOptions {
   listUsersUseCase: ListUsersUseCase;
   getUserUseCase: GetUserUseCase;
   updateUserUseCase: UpdateUserUseCase;
+  deleteUserUseCase: DeleteUserUseCase;
   getAllAiUsageUseCase: GetAllAiUsageUseCase;
 }
 
@@ -28,7 +30,7 @@ const UserPublicSchema = {
 } as const;
 
 export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOptions): Promise<void> {
-  const { listUsersUseCase, getUserUseCase, updateUserUseCase, getAllAiUsageUseCase } = opts;
+  const { listUsersUseCase, getUserUseCase, updateUserUseCase, deleteUserUseCase, getAllAiUsageUseCase } = opts;
   const verifyJWT = (fastify as any).verifyJWT;
   const requireAdmin = (fastify as any).requireAdmin;
   const adminGuard = [verifyJWT, requireAdmin];
@@ -141,6 +143,37 @@ export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOpt
         userAgent: request.headers['user-agent'],
       });
       return reply.status(HTTP_STATUS.OK).send(result);
+    },
+  });
+
+  // ── DELETE /v1/admin/users/:id ─────────────────────────────────────
+  fastify.delete('/users/:id', {
+    schema: {
+      tags: ['Admin'],
+      summary: 'Delete user (GDPR hard-delete)',
+      description: 'Permanently delete a user account and cascade-delete their API keys. AuditLog entries are preserved with userId set to null. Requires ADMIN role.',
+      security: [{ BearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string' } },
+      },
+      response: {
+        204: { type: 'null', description: 'User deleted' },
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+    },
+    preHandler: adminGuard,
+    handler: async (request, reply) => {
+      const { id } = request.params as { id: string };
+      await deleteUserUseCase.execute(id, {
+        adminId: request.user!.sub,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+      return reply.status(HTTP_STATUS.NO_CONTENT).send();
     },
   });
 

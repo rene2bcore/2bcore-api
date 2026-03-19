@@ -45,11 +45,13 @@ import { LogoutUseCase } from '../../application/use-cases/auth/logout.js';
 import { CreateApiKeyUseCase } from '../../application/use-cases/keys/createApiKey.js';
 import { ListApiKeysUseCase } from '../../application/use-cases/keys/listApiKeys.js';
 import { RevokeApiKeyUseCase } from '../../application/use-cases/keys/revokeApiKey.js';
+import { GetApiKeyUseCase } from '../../application/use-cases/keys/getApiKey.js';
 import { ChatUseCase } from '../../application/use-cases/ai/chat.js';
 import { GetAiUsageUseCase } from '../../application/use-cases/ai/getUsage.js';
 import { ListUsersUseCase } from '../../application/use-cases/admin/listUsers.js';
 import { GetUserUseCase } from '../../application/use-cases/admin/getUser.js';
 import { UpdateUserUseCase } from '../../application/use-cases/admin/updateUser.js';
+import { DeleteUserUseCase } from '../../application/use-cases/admin/deleteUser.js';
 import { GetAllAiUsageUseCase } from '../../application/use-cases/admin/getAllAiUsage.js';
 import { RegisterUserUseCase } from '../../application/use-cases/users/register.js';
 import { GetMeUseCase } from '../../application/use-cases/users/getMe.js';
@@ -172,11 +174,13 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const createApiKeyUseCase = new CreateApiKeyUseCase(apiKeyRepo, auditRepo);
   const listApiKeysUseCase = new ListApiKeysUseCase(apiKeyRepo);
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
+  const getApiKeyUseCase = new GetApiKeyUseCase(apiKeyRepo);
   const chatUseCase = new ChatUseCase(anthropicClient, costTracker, modelRouter, auditRepo, aiUsageRepo);
   const getAiUsageUseCase = new GetAiUsageUseCase(aiUsageRepo);
   const listUsersUseCase = new ListUsersUseCase(userRepo);
   const getUserUseCase = new GetUserUseCase(userRepo);
   const updateUserUseCase = new UpdateUserUseCase(userRepo, auditRepo);
+  const deleteUserUseCase = new DeleteUserUseCase(userRepo, authService, auditRepo);
   const getAllAiUsageUseCase = new GetAllAiUsageUseCase(aiUsageRepo);
   const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo);
   const getMeUseCase = new GetMeUseCase(userRepo);
@@ -255,6 +259,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
     createApiKeyUseCase,
     listApiKeysUseCase,
     revokeApiKeyUseCase,
+    getApiKeyUseCase,
   });
 
   await fastify.register(aiRoutes, {
@@ -276,6 +281,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
     listUsersUseCase,
     getUserUseCase,
     updateUserUseCase,
+    deleteUserUseCase,
     getAllAiUsageUseCase,
   });
 

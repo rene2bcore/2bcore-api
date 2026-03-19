@@ -24,12 +24,30 @@ All API keys currently grant full user-level permissions. No per-key scope restr
 
 ---
 
-## TD-003: No Per-User Token Budget Enforcement (AI Endpoints)
+## TD-003: ~~No Per-User Token Budget Enforcement~~ — RESOLVED 2026-03-18
 
-**Added:** 2026-03-17
-**Severity:** Low (AI endpoints not yet implemented)
-**Area:** Cost Control / AI
+Budget enforcement is wired: `CostTracker.checkBudget()` called before every chat request. Redis counters track monthly token spend. Returns `429 AI_001` when exceeded.
 
-The `CostTracker` service is scaffolded but AI endpoint token budget enforcement via Redis counters is not yet wired.
+---
 
-**Remediation:** Implement when AI proxy endpoints are added.
+## TD-004: Role Change Requires Token Re-issue
+
+**Added:** 2026-03-18
+**Severity:** Low
+**Area:** RBAC / Authentication
+
+Role changes via `PATCH /v1/admin/users/:id` take effect on the next login. Existing access tokens retain the old role for up to 15 minutes.
+
+**Remediation:** When an admin changes a user's role, optionally blacklist the target's current access tokens (requires storing user→jti mapping in Redis).
+
+---
+
+## TD-005: AI Cost Pricing Table Requires Manual Updates
+
+**Added:** 2026-03-18
+**Severity:** Low
+**Area:** AI Cost Tracking
+
+`MODEL_PRICING` in `src/shared/constants/index.ts` is hardcoded. Anthropic price changes require a code change and deployment.
+
+**Remediation:** Move pricing to a DB table or env-configured JSON, with a fallback to the hardcoded defaults.
