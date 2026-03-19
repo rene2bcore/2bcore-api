@@ -33,6 +33,7 @@ export default defineConfig({
       RATE_LIMIT_AI_MAX: '1000',
       RATE_LIMIT_AI_WINDOW_MS: '60000',
       ANTHROPIC_API_KEY: 'sk-ant-test-integration',
+      APP_URL: 'http://localhost:3000',
     },
   },
   resolve: {

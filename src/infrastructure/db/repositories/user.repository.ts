@@ -35,7 +35,7 @@ export class PrismaUserRepository implements IUserRepository {
     return this.toDomain(row);
   }
 
-  async update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash' | 'role'>>): Promise<User> {
+  async update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash' | 'role' | 'emailVerified' | 'emailVerifiedAt'>>): Promise<User> {
     const row = await this.prisma.user.update({
       where: { id },
       data: {
@@ -43,6 +43,8 @@ export class PrismaUserRepository implements IUserRepository {
         ...(data.email && { email: data.email }),
         ...(data.passwordHash && { passwordHash: data.passwordHash }),
         ...(data.role && { role: data.role }),
+        ...(data.emailVerified !== undefined && { emailVerified: data.emailVerified }),
+        ...(data.emailVerifiedAt !== undefined && { emailVerifiedAt: data.emailVerifiedAt }),
       },
     });
     return this.toDomain(row);
@@ -58,6 +60,8 @@ export class PrismaUserRepository implements IUserRepository {
     passwordHash: string;
     role: 'USER' | 'ADMIN';
     isActive: boolean;
+    emailVerified: boolean;
+    emailVerifiedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): User {
@@ -67,6 +71,8 @@ export class PrismaUserRepository implements IUserRepository {
       passwordHash: row.passwordHash,
       role: row.role,
       isActive: row.isActive,
+      emailVerified: row.emailVerified,
+      emailVerifiedAt: row.emailVerifiedAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

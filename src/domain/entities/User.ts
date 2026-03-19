@@ -6,6 +6,8 @@ export interface User {
   passwordHash: string;
   role: UserRole;
   isActive: boolean;
+  emailVerified: boolean;
+  emailVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,6 +17,7 @@ export interface UserPublic {
   email: string;
   role: UserRole;
   isActive: boolean;
+  emailVerified: boolean;
   createdAt: Date;
 }
 
@@ -24,6 +27,7 @@ export function toPublicUser(user: User): UserPublic {
     email: user.email,
     role: user.role,
     isActive: user.isActive,
+    emailVerified: user.emailVerified,
     createdAt: user.createdAt,
   };
 }

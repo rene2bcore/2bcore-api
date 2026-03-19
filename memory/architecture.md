@@ -40,6 +40,10 @@
 | `POST /v1/auth/login` | — | Issue JWT + refresh token |
 | `POST /v1/auth/refresh` | cookie | Rotate refresh token |
 | `POST /v1/auth/logout` | JWT | Blacklist access token |
+| `POST /v1/auth/verify-email` | — | Consume one-time email verification token (24h TTL) |
+| `POST /v1/auth/resend-verification` | — | Resend verification email (prevents enumeration) |
+| `POST /v1/auth/forgot-password` | — | Send password reset email (always 204) |
+| `POST /v1/auth/reset-password` | — | Consume reset token, set new password, revoke sessions |
 | `POST /v1/users` | — | Register user |
 | `GET /v1/users/me` | JWT or API key | Get own profile |
 | `PATCH /v1/users/me` | JWT | Update email/password |

@@ -38,6 +38,8 @@ export async function seedTestUser(overrides?: {
       passwordHash: row.passwordHash,
       role: row.role,
       isActive: row.isActive,
+      emailVerified: row.emailVerified,
+      emailVerifiedAt: row.emailVerifiedAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     },

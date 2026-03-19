@@ -81,6 +81,18 @@ export class UserAlreadyExistsError extends DomainError {
   }
 }
 
+export class EmailNotVerifiedError extends UnauthorizedError {
+  constructor() {
+    super('Email address has not been verified', ERROR_CODES.EMAIL_NOT_VERIFIED);
+  }
+}
+
+export class InvalidOrExpiredTokenError extends DomainError {
+  constructor(resource = 'Token') {
+    super(`${resource} is invalid or has expired`, ERROR_CODES.INVALID_OR_EXPIRED_TOKEN, HTTP_STATUS.BAD_REQUEST);
+  }
+}
+
 export class AiBudgetExceededError extends DomainError {
   constructor() {
     super('Monthly AI token budget exceeded', ERROR_CODES.AI_BUDGET_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);

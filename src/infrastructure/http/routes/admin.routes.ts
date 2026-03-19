@@ -24,9 +24,10 @@ const UserPublicSchema = {
     email: { type: 'string', format: 'email' },
     role: { type: 'string', enum: ['USER', 'ADMIN'] },
     isActive: { type: 'boolean' },
+    emailVerified: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
   },
-  required: ['id', 'email', 'role', 'isActive', 'createdAt'],
+  required: ['id', 'email', 'role', 'isActive', 'emailVerified', 'createdAt'],
 } as const;
 
 export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOptions): Promise<void> {

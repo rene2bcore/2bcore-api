@@ -24,9 +24,10 @@ export const swaggerPlugin = fp(async (fastify: FastifyInstance) => {
       email: { type: 'string', format: 'email' },
       role: { type: 'string', enum: ['USER', 'ADMIN'] },
       isActive: { type: 'boolean' },
+      emailVerified: { type: 'boolean' },
       createdAt: { type: 'string', format: 'date-time' },
     },
-    required: ['id', 'email', 'role', 'isActive', 'createdAt'],
+    required: ['id', 'email', 'role', 'isActive', 'emailVerified', 'createdAt'],
   });
 
   // ── OpenAPI spec ───────────────────────────────────────────────────

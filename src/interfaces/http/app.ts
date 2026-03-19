@@ -28,12 +28,17 @@ import { TokenBlacklist } from '../../infrastructure/redis/tokenBlacklist.js';
 import { RefreshTokenStore } from '../../infrastructure/redis/refreshTokenStore.js';
 import { TokenBudgetStore } from '../../infrastructure/redis/tokenBudgetStore.js';
 import { AnthropicClient, type IAnthropicClient } from '../../infrastructure/ai/AnthropicClient.js';
+import { ConsoleEmailService } from '../../infrastructure/email/ConsoleEmailService.js';
+import { NodemailerEmailService } from '../../infrastructure/email/NodemailerEmailService.js';
+import type { IEmailService } from '../../domain/services/IEmailService.js';
 
 // Repositories
 import { PrismaUserRepository } from '../../infrastructure/db/repositories/user.repository.js';
 import { PrismaApiKeyRepository } from '../../infrastructure/db/repositories/apikey.repository.js';
 import { PrismaAuditLogRepository } from '../../infrastructure/db/repositories/auditlog.repository.js';
 import { PrismaAiUsageLogRepository } from '../../infrastructure/db/repositories/aiusagelog.repository.js';
+import { PrismaEmailVerificationRepository } from '../../infrastructure/db/repositories/emailverification.repository.js';
+import { PrismaPasswordResetRepository } from '../../infrastructure/db/repositories/passwordreset.repository.js';
 
 // Services & Use Cases
 import { AuthService } from '../../application/services/AuthService.js';
@@ -42,6 +47,10 @@ import { CostTracker } from '../../application/services/CostTracker.js';
 import { LoginUseCase } from '../../application/use-cases/auth/login.js';
 import { RefreshTokenUseCase } from '../../application/use-cases/auth/refresh.js';
 import { LogoutUseCase } from '../../application/use-cases/auth/logout.js';
+import { SendVerificationEmailUseCase } from '../../application/use-cases/auth/sendVerificationEmail.js';
+import { VerifyEmailUseCase } from '../../application/use-cases/auth/verifyEmail.js';
+import { ForgotPasswordUseCase } from '../../application/use-cases/auth/forgotPassword.js';
+import { ResetPasswordUseCase } from '../../application/use-cases/auth/resetPassword.js';
 import { CreateApiKeyUseCase } from '../../application/use-cases/keys/createApiKey.js';
 import { ListApiKeysUseCase } from '../../application/use-cases/keys/listApiKeys.js';
 import { RevokeApiKeyUseCase } from '../../application/use-cases/keys/revokeApiKey.js';
@@ -66,6 +75,7 @@ import type { FastifyError } from 'fastify';
 
 export interface AppOverrides {
   anthropicClient?: IAnthropicClient;
+  emailService?: IEmailService;
 }
 
 export async function buildApp(overrides: AppOverrides = {}) {
@@ -149,6 +159,18 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const refreshTokenStore = new RefreshTokenStore(redis);
   const tokenBudgetStore = new TokenBudgetStore(redis);
   const anthropicClient = overrides.anthropicClient ?? new AnthropicClient(env.ANTHROPIC_API_KEY);
+  const emailService: IEmailService =
+    overrides.emailService ??
+    (env.SMTP_HOST
+      ? new NodemailerEmailService({
+          host: env.SMTP_HOST,
+          port: env.SMTP_PORT,
+          secure: env.SMTP_SECURE,
+          user: env.SMTP_USER,
+          pass: env.SMTP_PASS,
+          from: env.SMTP_FROM,
+        })
+      : new ConsoleEmailService());
 
   // ── Rate limiting ──────────────────────────────────────────────────
   await fastify.register(rateLimitPlugin, { redis });
@@ -158,6 +180,8 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const apiKeyRepo = new PrismaApiKeyRepository(prisma);
   const auditRepo = new PrismaAuditLogRepository(prisma);
   const aiUsageRepo = new PrismaAiUsageLogRepository(prisma);
+  const emailVerificationRepo = new PrismaEmailVerificationRepository(prisma);
+  const passwordResetRepo = new PrismaPasswordResetRepository(prisma);
 
   // ── Services ───────────────────────────────────────────────────────
   const authService = new AuthService(tokenBlacklist, refreshTokenStore);
@@ -171,6 +195,10 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const loginUseCase = new LoginUseCase(userRepo, authService, auditRepo);
   const refreshUseCase = new RefreshTokenUseCase(userRepo, authService, auditRepo);
   const logoutUseCase = new LogoutUseCase(authService, auditRepo);
+  const sendVerificationEmailUseCase = new SendVerificationEmailUseCase(userRepo, emailVerificationRepo, emailService);
+  const verifyEmailUseCase = new VerifyEmailUseCase(userRepo, emailVerificationRepo, auditRepo);
+  const forgotPasswordUseCase = new ForgotPasswordUseCase(userRepo, passwordResetRepo, emailService, auditRepo);
+  const resetPasswordUseCase = new ResetPasswordUseCase(userRepo, passwordResetRepo, authService, auditRepo);
   const createApiKeyUseCase = new CreateApiKeyUseCase(apiKeyRepo, auditRepo);
   const listApiKeysUseCase = new ListApiKeysUseCase(apiKeyRepo);
   const revokeApiKeyUseCase = new RevokeApiKeyUseCase(apiKeyRepo, auditRepo);
@@ -182,7 +210,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const updateUserUseCase = new UpdateUserUseCase(userRepo, auditRepo);
   const deleteUserUseCase = new DeleteUserUseCase(userRepo, authService, auditRepo);
   const getAllAiUsageUseCase = new GetAllAiUsageUseCase(aiUsageRepo);
-  const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo);
+  const registerUserUseCase = new RegisterUserUseCase(userRepo, auditRepo, sendVerificationEmailUseCase);
   const getMeUseCase = new GetMeUseCase(userRepo);
   const updateMeUseCase = new UpdateMeUseCase(userRepo, auditRepo);
   const deleteMeUseCase = new DeleteMeUseCase(userRepo, authService, auditRepo);
@@ -252,6 +280,10 @@ export async function buildApp(overrides: AppOverrides = {}) {
     loginUseCase,
     refreshUseCase,
     logoutUseCase,
+    sendVerificationEmailUseCase,
+    verifyEmailUseCase,
+    forgotPasswordUseCase,
+    resetPasswordUseCase,
   });
 
   await fastify.register(keysRoutes, {

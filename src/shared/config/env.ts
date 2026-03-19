@@ -47,6 +47,18 @@ const envSchema = z.object({
   AI_MONTHLY_TOKEN_BUDGET: z.coerce.number().int().min(0).default(0), // 0 = unlimited
   AI_DEFAULT_MAX_TOKENS: z.coerce.number().int().min(1).max(8192).default(1024),
 
+  // Email
+  APP_URL: z.string().url().default('http://localhost:3000'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().email().default('no-reply@2bcore.io'),
+
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   LOG_PRETTY: z

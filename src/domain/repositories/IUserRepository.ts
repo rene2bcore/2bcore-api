@@ -21,6 +21,6 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   findAll(options: FindAllUsersOptions): Promise<UserPage>;
   create(input: CreateUserInput): Promise<User>;
-  update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash' | 'role'>>): Promise<User>;
+  update(id: string, data: Partial<Pick<User, 'isActive' | 'email' | 'passwordHash' | 'role' | 'emailVerified' | 'emailVerifiedAt'>>): Promise<User>;
   delete(id: string): Promise<void>;
 }

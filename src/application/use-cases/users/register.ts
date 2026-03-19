@@ -5,6 +5,8 @@ import { UserAlreadyExistsError } from '../../../domain/errors/index.js';
 import { UserPublic, toPublicUser } from '../../../domain/entities/User.js';
 import { RegisterUserInput } from '../../dtos/user.dto.js';
 import { env } from '../../../shared/config/env.js';
+import { logger } from '../../../infrastructure/observability/logger.js';
+import type { SendVerificationEmailUseCase } from '../auth/sendVerificationEmail.js';
 
 export interface RegisterContext {
   ipAddress?: string | undefined;
@@ -15,6 +17,7 @@ export class RegisterUserUseCase {
   constructor(
     private readonly userRepo: IUserRepository,
     private readonly auditRepo: IAuditLogRepository,
+    private readonly sendVerificationEmailUseCase?: SendVerificationEmailUseCase,
   ) {}
 
   async execute(input: RegisterUserInput, ctx: RegisterContext): Promise<UserPublic> {
@@ -35,6 +38,13 @@ export class RegisterUserUseCase {
       userAgent: ctx.userAgent,
       metadata: { email: user.email },
     });
+
+    // Fire-and-forget — registration succeeds even if email sending fails
+    if (this.sendVerificationEmailUseCase) {
+      void this.sendVerificationEmailUseCase.execute(user.id).catch((err: unknown) => {
+        logger.warn({ err, userId: user.id }, 'Failed to send verification email after registration');
+      });
+    }
 
     return toPublicUser(user);
   }
