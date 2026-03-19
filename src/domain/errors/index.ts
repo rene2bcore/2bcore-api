@@ -93,6 +93,16 @@ export class InvalidOrExpiredTokenError extends DomainError {
   }
 }
 
+export class InsufficientScopeError extends DomainError {
+  constructor(required: string) {
+    super(
+      `API key does not have the required scope: ${required}`,
+      ERROR_CODES.API_KEY_INSUFFICIENT_SCOPE,
+      HTTP_STATUS.FORBIDDEN,
+    );
+  }
+}
+
 export class AiBudgetExceededError extends DomainError {
   constructor() {
     super('Monthly AI token budget exceeded', ERROR_CODES.AI_BUDGET_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);

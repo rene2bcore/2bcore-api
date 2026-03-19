@@ -5,6 +5,7 @@ export interface CreateApiKeyInput {
   name: string;
   keyHash: string;
   prefix: string;
+  scopes?: string[];
 }
 
 export interface IApiKeyRepository {

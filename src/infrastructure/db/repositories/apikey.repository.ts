@@ -20,7 +20,7 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map(this.toDomain);
+    return rows.map((r) => this.toDomain(r));
   }
 
   async create(input: CreateApiKeyInput): Promise<ApiKey> {
@@ -30,6 +30,7 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
         name: input.name,
         keyHash: input.keyHash,
         prefix: input.prefix,
+        scopes: input.scopes ?? [],
       },
     });
     return this.toDomain(row);
@@ -56,6 +57,7 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
     name: string;
     keyHash: string;
     prefix: string;
+    scopes: unknown;
     isActive: boolean;
     lastUsedAt: Date | null;
     createdAt: Date;
@@ -67,6 +69,7 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
       name: row.name,
       keyHash: row.keyHash,
       prefix: row.prefix,
+      scopes: Array.isArray(row.scopes) ? (row.scopes as string[]) : [],
       isActive: row.isActive,
       lastUsedAt: row.lastUsedAt,
       createdAt: row.createdAt,

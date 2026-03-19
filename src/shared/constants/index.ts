@@ -37,6 +37,7 @@ export const ERROR_CODES = {
   API_KEY_INVALID: 'KEY_001',
   API_KEY_REVOKED: 'KEY_002',
   API_KEY_NOT_FOUND: 'KEY_003',
+  API_KEY_INSUFFICIENT_SCOPE: 'KEY_004',
   // Authorization
   FORBIDDEN: 'AUTHZ_001',
   // Validation
@@ -50,6 +51,19 @@ export const ERROR_CODES = {
   NOT_FOUND: 'GEN_001',
   INTERNAL_ERROR: 'GEN_500',
 } as const;
+
+// Defined API key scopes — empty array means wildcard (full access)
+export const API_KEY_SCOPES = {
+  AI_CHAT: 'ai:chat',
+  AI_USAGE: 'ai:usage',
+  KEYS_READ: 'keys:read',
+  KEYS_WRITE: 'keys:write',
+  USERS_READ: 'users:read',
+} as const;
+
+export type ApiKeyScope = (typeof API_KEY_SCOPES)[keyof typeof API_KEY_SCOPES];
+
+export const ALL_SCOPES: ApiKeyScope[] = Object.values(API_KEY_SCOPES) as ApiKeyScope[];
 
 // Model tier → canonical model ID
 export const MODEL_TIERS = {

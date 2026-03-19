@@ -18,6 +18,7 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
   const { chatUseCase, getAiUsageUseCase } = opts;
   const verifyAuth = (fastify as any).verifyAuth;
   const verifyJWT = (fastify as any).verifyJWT;
+  const requireScope = (fastify as any).requireScope;
 
   // ── POST /v1/ai/chat ────────────────────────────────────────────────
   fastify.post('/chat', {
@@ -83,7 +84,7 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
         500: ErrorResponse,
       },
     },
-    preHandler: [verifyAuth],
+    preHandler: [verifyAuth, requireScope('ai:chat')],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
       const body = ChatInputSchema.parse(request.body);
@@ -136,7 +137,7 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
       tags: ['AI'],
       summary: 'AI usage history',
       description: 'Paginated list of AI usage logs for the authenticated user, with token and cost summary.',
-      security: [{ BearerAuth: [] }],
+      security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }],
       querystring: {
         type: 'object',
         properties: {
@@ -196,7 +197,7 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
         422: ErrorResponse,
       },
     },
-    preHandler: [verifyJWT],
+    preHandler: [verifyAuth, requireScope('ai:usage')],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
       const query = AiUsageQuerySchema.parse(request.query);

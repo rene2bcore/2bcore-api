@@ -22,6 +22,7 @@ describe('API Keys routes', () => {
     name: string;
     key: string;
     prefix: string;
+    scopes: string[];
     createdAt: string;
   }> {
     const res = await app.inject({
@@ -60,6 +61,7 @@ describe('API Keys routes', () => {
       expect(body.name).toBe('My Service Key');
       expect(body.key).toBeTypeOf('string');
       expect(body.prefix).toBeTypeOf('string');
+      expect(body.scopes).toEqual([]);
       expect(body.createdAt).toBeTypeOf('string');
     });
 

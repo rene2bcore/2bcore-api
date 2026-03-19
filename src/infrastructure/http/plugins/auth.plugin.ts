@@ -3,11 +3,22 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { AuthService, AccessTokenPayload } from '../../../application/services/AuthService.js';
 import { IApiKeyRepository } from '../../../domain/repositories/IApiKeyRepository.js';
 import { sha256 } from '../../../shared/utils/crypto.js';
-import { UnauthorizedError, ApiKeyInvalidError, ApiKeyRevokedError, ForbiddenError } from '../../../domain/errors/index.js';
+import {
+  UnauthorizedError,
+  ApiKeyInvalidError,
+  ApiKeyRevokedError,
+  ForbiddenError,
+  InsufficientScopeError,
+} from '../../../domain/errors/index.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    user?: AccessTokenPayload & { type: 'jwt' | 'apikey'; sid: string };
+    user?: AccessTokenPayload & {
+      type: 'jwt' | 'apikey';
+      sid: string;
+      /** Scopes attached to the API key. Empty = wildcard. Only set for apikey type. */
+      scopes?: string[];
+    };
   }
 }
 
@@ -36,6 +47,7 @@ export const authPlugin = fp(async (fastify: FastifyInstance, opts: AuthPluginOp
   /**
    * Decorator: verifyApiKey
    * Validates sk-live-xxx API key from Authorization header (Bearer) or X-API-Key header.
+   * Attaches key scopes to request.user for downstream scope enforcement.
    */
   fastify.decorate('verifyApiKey', async (request: FastifyRequest) => {
     const apiKey =
@@ -62,6 +74,7 @@ export const authPlugin = fp(async (fastify: FastifyInstance, opts: AuthPluginOp
       iat: 0,
       exp: 0,
       type: 'apikey',
+      scopes: key.scopes,
     };
   });
 
@@ -87,6 +100,24 @@ export const authPlugin = fp(async (fastify: FastifyInstance, opts: AuthPluginOp
       await (fastify as any).verifyApiKey(request);
     } else {
       await (fastify as any).verifyJWT(request);
+    }
+  });
+
+  /**
+   * Decorator factory: requireScope(scope)
+   * Returns a preHandler that enforces a specific scope on API key requests.
+   * JWT requests bypass scope checks (users always have full access).
+   * API keys with empty scopes array are wildcards and also bypass checks.
+   */
+  fastify.decorate('requireScope', (scope: string) => async (request: FastifyRequest) => {
+    const user = request.user;
+    if (!user || user.type !== 'apikey') return; // JWT → no scope restriction
+
+    const keyScopes = user.scopes ?? [];
+    if (keyScopes.length === 0) return; // wildcard key → full access
+
+    if (!keyScopes.includes(scope)) {
+      throw new InsufficientScopeError(scope);
     }
   });
 });

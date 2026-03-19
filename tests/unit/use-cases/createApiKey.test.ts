@@ -20,6 +20,7 @@ describe('CreateApiKeyUseCase', () => {
         name: 'Test Key',
         keyHash: 'hashed',
         prefix: 'sk-live-xxxxxxxxx…',
+        scopes: [],
         isActive: true,
         lastUsedAt: null,
         createdAt: new Date('2026-01-01'),
@@ -36,15 +37,16 @@ describe('CreateApiKeyUseCase', () => {
   });
 
   it('creates an API key and returns the raw key once', async () => {
-    const result = await useCase.execute('usr_001', { name: 'Test Key' });
+    const result = await useCase.execute('usr_001', { name: 'Test Key', scopes: [] });
 
     expect(result.key).toMatch(/^sk-live-/);
     expect(result.id).toBe('key_001');
     expect(result.name).toBe('Test Key');
+    expect(result.scopes).toEqual([]);
   });
 
   it('stores a hash, not the raw key', async () => {
-    await useCase.execute('usr_001', { name: 'My Key' });
+    await useCase.execute('usr_001', { name: 'My Key', scopes: [] });
 
     const createCall = vi.mocked(apiKeyRepo.create).mock.calls[0]?.[0];
     expect(createCall?.keyHash).not.toMatch(/^sk-live-/);
@@ -52,7 +54,7 @@ describe('CreateApiKeyUseCase', () => {
   });
 
   it('creates an audit log entry', async () => {
-    await useCase.execute('usr_001', { name: 'My Key' });
+    await useCase.execute('usr_001', { name: 'My Key', scopes: [] });
 
     expect(auditRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({

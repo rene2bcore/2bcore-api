@@ -28,6 +28,7 @@ export async function usersRoutes(fastify: FastifyInstance, opts: UsersRoutesOpt
   const { registerUserUseCase, getMeUseCase, updateMeUseCase, deleteMeUseCase } = opts;
   const verifyAuth = (fastify as any).verifyAuth;
   const verifyJWT = (fastify as any).verifyJWT;
+  const requireScope = (fastify as any).requireScope;
 
   // ── POST / (register) ──────────────────────────────────────────────
   fastify.post('/', {
@@ -81,7 +82,7 @@ export async function usersRoutes(fastify: FastifyInstance, opts: UsersRoutesOpt
         401: ErrorResponse,
       },
     },
-    preHandler: [verifyAuth],
+    preHandler: [verifyAuth, requireScope('users:read')],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
       const user = await getMeUseCase.execute(userId);

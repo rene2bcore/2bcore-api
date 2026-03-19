@@ -69,6 +69,7 @@ model ApiKey {
   name        String    @db.VarChar(64)
   keyHash     String    @unique @map("key_hash") @db.Char(64)
   prefix      String    @db.VarChar(20)
+  scopes      Json      @default("[]") @map("scopes")
   isActive    Boolean   @default(true) @map("is_active")
   lastUsedAt  DateTime? @map("last_used_at")
   createdAt   DateTime  @default(now()) @map("created_at")

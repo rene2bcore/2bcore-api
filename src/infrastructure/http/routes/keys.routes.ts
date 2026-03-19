@@ -4,7 +4,7 @@ import { ListApiKeysUseCase } from '../../../application/use-cases/keys/listApiK
 import { RevokeApiKeyUseCase } from '../../../application/use-cases/keys/revokeApiKey.js';
 import { GetApiKeyUseCase } from '../../../application/use-cases/keys/getApiKey.js';
 import { CreateApiKeyInputSchema } from '../../../application/dtos/apikey.dto.js';
-import { HTTP_STATUS } from '../../../shared/constants/index.js';
+import { HTTP_STATUS, ALL_SCOPES } from '../../../shared/constants/index.js';
 
 interface KeysRoutesOptions {
   createApiKeyUseCase: CreateApiKeyUseCase;
@@ -15,18 +15,25 @@ interface KeysRoutesOptions {
 
 const ErrorResponse = { $ref: 'ErrorResponse#' };
 
+const ScopesProperty = {
+  type: 'array',
+  items: { type: 'string', enum: ALL_SCOPES },
+  description: 'Scopes granted to this key. Empty array = full access (wildcard).',
+};
+
 const ApiKeyMeta = {
   type: 'object',
   properties: {
     id: { type: 'string' },
     name: { type: 'string' },
     prefix: { type: 'string', description: 'First 8 characters of the key for identification' },
+    scopes: ScopesProperty,
     isActive: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
     lastUsedAt: { type: ['string', 'null'], format: 'date-time' },
     revokedAt: { type: ['string', 'null'], format: 'date-time' },
   },
-  required: ['id', 'name', 'prefix', 'isActive', 'createdAt'],
+  required: ['id', 'name', 'prefix', 'scopes', 'isActive', 'createdAt'],
 };
 
 export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptions): Promise<void> {
@@ -34,19 +41,24 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
 
   const verifyJWT = (fastify as any).verifyJWT;
   const verifyAuth = (fastify as any).verifyAuth;
+  const requireScope = (fastify as any).requireScope;
 
   // ── POST /keys ─────────────────────────────────────────────────────
   fastify.post('/', {
     schema: {
       tags: ['API Keys'],
       summary: 'Create API key',
-      description: 'Create a new API key. The raw key (`sk-live-...`) is returned **once** and never stored in plaintext. JWT required.',
+      description: 'Create a new API key. The raw key (`sk-live-...`) is returned **once** and never stored in plaintext. Optionally restrict to specific scopes. JWT required.',
       security: [{ BearerAuth: [] }],
       body: {
         type: 'object',
         required: ['name'],
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 64, description: 'Human-readable label for the key' },
+          scopes: {
+            ...ScopesProperty,
+            default: [],
+          },
         },
       },
       response: {
@@ -57,9 +69,10 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
             name: { type: 'string' },
             key: { type: 'string', description: 'Full API key — shown once, store securely' },
             prefix: { type: 'string' },
+            scopes: ScopesProperty,
             createdAt: { type: 'string', format: 'date-time' },
           },
-          required: ['id', 'name', 'key', 'prefix', 'createdAt'],
+          required: ['id', 'name', 'key', 'prefix', 'scopes', 'createdAt'],
         },
         401: ErrorResponse,
         422: ErrorResponse,
@@ -81,7 +94,7 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
     schema: {
       tags: ['API Keys'],
       summary: 'List API keys',
-      description: 'List all API keys for the authenticated user. Raw keys are never returned.',
+      description: 'List all API keys for the authenticated user. Raw keys are never returned. Requires `keys:read` scope when using an API key.',
       security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }],
       response: {
         200: {
@@ -92,9 +105,10 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
           required: ['data'],
         },
         401: ErrorResponse,
+        403: ErrorResponse,
       },
     },
-    preHandler: [verifyAuth],
+    preHandler: [verifyAuth, requireScope('keys:read')],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
       const keys = await listApiKeysUseCase.execute(userId);
@@ -107,7 +121,7 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
     schema: {
       tags: ['API Keys'],
       summary: 'Get API key',
-      description: 'Retrieve metadata for a single API key by ID. Raw key is never returned. JWT or API Key auth accepted.',
+      description: 'Retrieve metadata for a single API key by ID. Raw key is never returned. Requires `keys:read` scope when using an API key.',
       security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }],
       params: {
         type: 'object',
@@ -123,7 +137,7 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
         404: ErrorResponse,
       },
     },
-    preHandler: [verifyAuth],
+    preHandler: [verifyAuth, requireScope('keys:read')],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
       const { id } = request.params as { id: string };

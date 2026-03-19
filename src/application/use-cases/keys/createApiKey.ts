@@ -20,6 +20,7 @@ export class CreateApiKeyUseCase {
       name: input.name,
       keyHash: hashed,
       prefix,
+      scopes: input.scopes,
     });
 
     await this.auditRepo.create({
@@ -27,7 +28,7 @@ export class CreateApiKeyUseCase {
       action: 'API_KEY_CREATED',
       resourceType: 'ApiKey',
       resourceId: apiKey.id,
-      metadata: { name: input.name },
+      metadata: { name: input.name, scopes: apiKey.scopes },
     });
 
     return {
@@ -35,6 +36,7 @@ export class CreateApiKeyUseCase {
       name: apiKey.name,
       key: raw, // Returned ONCE — caller must store it
       prefix,
+      scopes: apiKey.scopes,
       createdAt: apiKey.createdAt.toISOString(),
     };
   }

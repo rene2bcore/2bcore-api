@@ -4,6 +4,7 @@ export interface ApiKey {
   name: string;
   keyHash: string;
   prefix: string; // e.g. "sk-live-xxxx" (first 12 chars shown as hint)
+  scopes: string[]; // empty = wildcard (full access)
   isActive: boolean;
   lastUsedAt: Date | null;
   createdAt: Date;
@@ -15,6 +16,7 @@ export interface ApiKeyPublic {
   userId: string;
   name: string;
   prefix: string;
+  scopes: string[];
   isActive: boolean;
   lastUsedAt: Date | null;
   createdAt: Date;
@@ -27,6 +29,7 @@ export function toPublicApiKey(key: ApiKey): ApiKeyPublic {
     userId: key.userId,
     name: key.name,
     prefix: key.prefix,
+    scopes: key.scopes,
     isActive: key.isActive,
     lastUsedAt: key.lastUsedAt,
     createdAt: key.createdAt,

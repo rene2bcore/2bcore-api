@@ -10,6 +10,7 @@ const baseKey: ApiKey = {
   name: 'My Key',
   keyHash: 'hash',
   prefix: 'sk-live-abc',
+  scopes: [],
   isActive: true,
   lastUsedAt: null,
   createdAt: new Date(),
