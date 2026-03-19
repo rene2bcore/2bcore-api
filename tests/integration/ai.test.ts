@@ -336,5 +336,53 @@ describe('AI routes', () => {
       });
       expect(res.statusCode).toBe(401);
     });
+
+    it('filters by from date — past date returns logs', async () => {
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+      const res = await app.inject({
+        method: 'GET',
+        url: `/v1/ai/usage?from=${encodeURIComponent(yesterday)}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.data.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('filters by to date — future date returns logs', async () => {
+      const tomorrow = new Date(Date.now() + 86_400_000).toISOString();
+      const res = await app.inject({
+        method: 'GET',
+        url: `/v1/ai/usage?to=${encodeURIComponent(tomorrow)}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.data.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('filters by from/to range — past range returns no logs', async () => {
+      const from = new Date('2020-01-01T00:00:00Z').toISOString();
+      const to = new Date('2020-01-02T00:00:00Z').toISOString();
+      const res = await app.inject({
+        method: 'GET',
+        url: `/v1/ai/usage?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.data).toHaveLength(0);
+      expect(body.pagination.total).toBe(0);
+    });
+
+    it('returns 422 VAL_001 for invalid from date', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/ai/usage?from=not-a-date',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('VAL_001');
+    });
   });
 });

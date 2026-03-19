@@ -78,11 +78,35 @@ POST /v1/auth/refresh   # Rotates refresh token, returns new access_token
 POST /v1/auth/logout    # Blacklists access token, clears refresh cookie
 ```
 
-### API Keys (JWT required)
+### Users
 ```
-POST   /v1/keys         # Create key (raw returned once)
-GET    /v1/keys         # List keys (metadata only, no raw values)
-DELETE /v1/keys/:id     # Revoke key
+POST   /v1/users        # Register (public)
+GET    /v1/users/me     # Get own profile (JWT or API key)
+PATCH  /v1/users/me     # Update email / password (JWT required)
+DELETE /v1/users/me     # GDPR hard-delete with password confirmation (JWT required)
+```
+
+### API Keys
+```
+POST   /v1/keys         # Create key — raw value returned once (JWT required)
+GET    /v1/keys         # List keys — metadata only (JWT or API key)
+GET    /v1/keys/:id     # Get key metadata (JWT or API key)
+DELETE /v1/keys/:id     # Revoke key (JWT required)
+```
+
+### AI
+```
+POST   /v1/ai/chat      # Chat completion, supports streaming SSE (JWT or API key)
+GET    /v1/ai/usage     # Own AI usage history with token/cost summary (JWT required)
+```
+
+### Admin (JWT + ADMIN role required)
+```
+GET    /v1/admin/users           # List all users (paginated)
+GET    /v1/admin/users/:id       # Get user by ID
+PATCH  /v1/admin/users/:id       # Update user role or active status
+DELETE /v1/admin/users/:id       # Hard-delete user
+GET    /v1/admin/ai/usage        # Cross-user AI billing history
 ```
 
 ---
@@ -182,6 +206,50 @@ Critical variables:
 
 ---
 
+## Docker
+
+### Run with Docker Compose
+```bash
+docker compose up
+```
+
+The API container automatically runs `prisma migrate deploy` on startup before accepting requests. No manual migration step required.
+
+### Build production image
+```bash
+docker build -t 2bcore-api .
+```
+
+---
+
+## AI Chat
+
+### Non-streaming
+```bash
+curl -X POST http://localhost:3000/v1/ai/chat \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Explain Clean Architecture in one paragraph","tier":"standard"}'
+```
+
+### Streaming (SSE)
+```bash
+curl -X POST http://localhost:3000/v1/ai/chat \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Explain Clean Architecture","tier":"standard","stream":true}' \
+  --no-buffer
+```
+
+Model tiers: `fast` (haiku), `standard` (sonnet), `powerful` (opus).
+
+Per-user monthly token budget is enforced. Exceeding it returns `429 AI_001`.
+
+---
+
 ## ADRs
 
 - [ADR-001: Auth Strategy — JWT RS256 + API Keys](docs/adr/001-auth-strategy.md)
+- [ADR-002: Clean Architecture](docs/adr/002-clean-architecture.md)
+- [ADR-003: AI Cost Tracking](docs/adr/003-ai-cost-tracking.md)
+- [ADR-004: RBAC](docs/adr/004-rbac.md)

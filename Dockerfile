@@ -36,6 +36,9 @@ COPY prisma ./prisma/
 # Copy compiled output
 COPY --from=builder /app/dist ./dist
 
+# Copy entrypoint script
+COPY scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+
 # Health check dependency
 RUN apk add --no-cache curl
 
@@ -46,4 +49,4 @@ EXPOSE 3000 9090
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
-CMD ["node", "dist/interfaces/http/server.js"]
+ENTRYPOINT ["sh", "scripts/docker-entrypoint.sh"]
