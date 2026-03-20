@@ -8,6 +8,11 @@ import { SendVerificationEmailUseCase } from '../../../application/use-cases/aut
 import { VerifyEmailUseCase } from '../../../application/use-cases/auth/verifyEmail.js';
 import { ForgotPasswordUseCase } from '../../../application/use-cases/auth/forgotPassword.js';
 import { ResetPasswordUseCase } from '../../../application/use-cases/auth/resetPassword.js';
+import { SetupTotpUseCase } from '../../../application/use-cases/auth/setupTotp.js';
+import { EnableTotpUseCase } from '../../../application/use-cases/auth/enableTotp.js';
+import { DisableTotpUseCase } from '../../../application/use-cases/auth/disableTotp.js';
+import { VerifyTotpChallengeUseCase } from '../../../application/use-cases/auth/verifyTotpChallenge.js';
+import { GetTotpStatusUseCase } from '../../../application/use-cases/auth/getTotpStatus.js';
 import {
   LoginInputSchema,
   VerifyEmailInputSchema,
@@ -28,6 +33,11 @@ interface AuthRoutesOptions {
   verifyEmailUseCase: VerifyEmailUseCase;
   forgotPasswordUseCase: ForgotPasswordUseCase;
   resetPasswordUseCase: ResetPasswordUseCase;
+  setupTotpUseCase: SetupTotpUseCase;
+  enableTotpUseCase: EnableTotpUseCase;
+  disableTotpUseCase: DisableTotpUseCase;
+  verifyTotpChallengeUseCase: VerifyTotpChallengeUseCase;
+  getTotpStatusUseCase: GetTotpStatusUseCase;
 }
 
 const TokenResponse = {
@@ -82,7 +92,14 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
     verifyEmailUseCase,
     forgotPasswordUseCase,
     resetPasswordUseCase,
+    setupTotpUseCase,
+    enableTotpUseCase,
+    disableTotpUseCase,
+    verifyTotpChallengeUseCase,
+    getTotpStatusUseCase,
   } = opts;
+
+  const verifyJWT = (fastify as any).verifyJWT;
 
   // ── POST /login ────────────────────────────────────────────────────
   fastify.post('/login', {
@@ -100,20 +117,38 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
       },
       response: {
         200: {
-          ...TokenResponse,
-          properties: {
-            ...TokenResponse.properties,
-            user: {
+          oneOf: [
+            // Full login (2FA not enabled)
+            {
               type: 'object',
               properties: {
-                id: { type: 'string' },
-                email: { type: 'string', format: 'email' },
-                role: { type: 'string' },
+                requires2fa: { type: 'boolean', enum: [false] },
+                accessToken: { type: 'string' },
+                tokenType: { type: 'string', enum: ['Bearer'] },
+                expiresIn: { type: 'number' },
+                sessionId: { type: 'string' },
+                user: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    email: { type: 'string', format: 'email' },
+                    role: { type: 'string' },
+                  },
+                  required: ['id', 'email', 'role'],
+                },
               },
-              required: ['id', 'email', 'role'],
+              required: ['requires2fa', 'accessToken', 'tokenType', 'expiresIn', 'sessionId', 'user'],
             },
-          },
-          required: [...TokenResponse.required, 'user'],
+            // 2FA challenge required
+            {
+              type: 'object',
+              properties: {
+                requires2fa: { type: 'boolean', enum: [true] },
+                challengeToken: { type: 'string', description: 'Short-lived token to complete 2FA challenge' },
+              },
+              required: ['requires2fa', 'challengeToken'],
+            },
+          ],
         },
         401: ErrorResponse,
         422: ErrorResponse,
@@ -131,9 +166,17 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
         userAgent: request.headers['user-agent'],
       });
 
+      if (result.requires2fa) {
+        return reply.status(HTTP_STATUS.OK).send({
+          requires2fa: true,
+          challengeToken: result.challengeToken,
+        });
+      }
+
       setRefreshCookie(reply, result.refreshCookie);
 
       return reply.status(HTTP_STATUS.OK).send({
+        requires2fa: false,
         accessToken: result.accessToken,
         tokenType: 'Bearer' as const,
         expiresIn: result.accessExpiresIn,
@@ -371,6 +414,192 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
         userAgent: request.headers['user-agent'],
       });
       return reply.status(HTTP_STATUS.NO_CONTENT).send();
+    },
+  });
+
+  // ── GET /2fa/status ────────────────────────────────────────────────
+  fastify.get('/2fa/status', {
+    schema: {
+      tags: ['2FA'],
+      summary: 'Get 2FA status',
+      description: 'Returns whether TOTP two-factor authentication is enabled for the authenticated user.',
+      security: [{ BearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            isEnabled: { type: 'boolean' },
+            enabledAt: { type: ['string', 'null'], format: 'date-time' },
+          },
+          required: ['isEnabled', 'enabledAt'],
+        },
+        401: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const status = await getTotpStatusUseCase.execute(userId);
+      return reply.status(HTTP_STATUS.OK).send(status);
+    },
+  });
+
+  // ── POST /2fa/setup ────────────────────────────────────────────────
+  fastify.post('/2fa/setup', {
+    schema: {
+      tags: ['2FA'],
+      summary: 'Setup TOTP 2FA',
+      description: 'Generate a TOTP secret and QR code. The secret is **not enabled** until confirmed via `POST /2fa/enable`. JWT required.',
+      security: [{ BearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            secret: { type: 'string', description: 'Base32 secret for manual entry into authenticator app' },
+            otpauthUrl: { type: 'string', description: 'otpauth:// URI for authenticator app QR scan' },
+            qrDataUrl: { type: 'string', description: 'PNG QR code as data URL (data:image/png;base64,...)' },
+          },
+          required: ['secret', 'otpauthUrl', 'qrDataUrl'],
+        },
+        401: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const user = request.user!;
+      const result = await setupTotpUseCase.execute(user.sub, user.email);
+      return reply.status(HTTP_STATUS.OK).send(result);
+    },
+  });
+
+  // ── POST /2fa/enable ───────────────────────────────────────────────
+  fastify.post('/2fa/enable', {
+    schema: {
+      tags: ['2FA'],
+      summary: 'Enable TOTP 2FA',
+      description: 'Confirm a valid TOTP code to activate 2FA. Returns one-time backup codes — store securely. JWT required.',
+      security: [{ BearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['code'],
+        properties: {
+          code: { type: 'string', minLength: 6, maxLength: 8, description: '6-digit TOTP code from authenticator app' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            backupCodes: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'One-time backup codes — shown once, store securely',
+            },
+          },
+          required: ['backupCodes'],
+        },
+        401: ErrorResponse,
+        409: ErrorResponse,
+        422: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const { code } = request.body as { code: string };
+      const result = await enableTotpUseCase.execute(userId, code);
+      return reply.status(HTTP_STATUS.OK).send(result);
+    },
+  });
+
+  // ── DELETE /2fa/disable ────────────────────────────────────────────
+  fastify.delete('/2fa/disable', {
+    schema: {
+      tags: ['2FA'],
+      summary: 'Disable TOTP 2FA',
+      description: 'Disable two-factor authentication. Requires a valid TOTP code or backup code. JWT required.',
+      security: [{ BearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['code'],
+        properties: {
+          code: { type: 'string', minLength: 6, maxLength: 10, description: 'Current TOTP code or backup code' },
+        },
+      },
+      response: {
+        204: { type: 'null', description: '2FA disabled' },
+        400: ErrorResponse,
+        401: ErrorResponse,
+        422: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const { code } = request.body as { code: string };
+      await disableTotpUseCase.execute(userId, code);
+      return reply.status(HTTP_STATUS.NO_CONTENT).send();
+    },
+  });
+
+  // ── POST /2fa/challenge ────────────────────────────────────────────
+  fastify.post('/2fa/challenge', {
+    schema: {
+      tags: ['2FA'],
+      summary: 'Complete 2FA challenge',
+      description: 'Exchange a challenge token (from login) + TOTP code for full session tokens.',
+      body: {
+        type: 'object',
+        required: ['challengeToken', 'code'],
+        properties: {
+          challengeToken: { type: 'string', description: 'Challenge token returned by POST /login' },
+          code: { type: 'string', minLength: 6, maxLength: 10, description: 'TOTP code or backup code' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            accessToken: { type: 'string' },
+            tokenType: { type: 'string', enum: ['Bearer'] },
+            expiresIn: { type: 'number' },
+            sessionId: { type: 'string' },
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                email: { type: 'string', format: 'email' },
+                role: { type: 'string' },
+              },
+              required: ['id', 'email', 'role'],
+            },
+          },
+          required: ['accessToken', 'tokenType', 'expiresIn', 'sessionId', 'user'],
+        },
+        401: ErrorResponse,
+        422: ErrorResponse,
+        429: ErrorResponse,
+      },
+    },
+    config: {
+      rateLimit: { ...authRateLimit, keyGenerator: (req: { ip: string }) => `auth_2fa_challenge:${req.ip}` },
+    },
+    handler: async (request, reply) => {
+      const { challengeToken, code } = request.body as { challengeToken: string; code: string };
+      const result = await verifyTotpChallengeUseCase.execute(
+        { challengeToken, code },
+        { ipAddress: request.ip, userAgent: request.headers['user-agent'] },
+      );
+
+      setRefreshCookie(reply, result.refreshCookie);
+
+      return reply.status(HTTP_STATUS.OK).send({
+        accessToken: result.accessToken,
+        tokenType: 'Bearer' as const,
+        expiresIn: result.accessExpiresIn,
+        sessionId: result.sessionId,
+        user: result.user,
+      });
     },
   });
 

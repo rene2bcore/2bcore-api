@@ -1,5 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
-import { IAuditLogRepository, CreateAuditLogInput } from '../../../domain/repositories/IAuditLogRepository.js';
+import { IAuditLogRepository, CreateAuditLogInput, AuditLogQuery, AuditLogPage } from '../../../domain/repositories/IAuditLogRepository.js';
 import { AuditLog } from '../../../domain/entities/AuditLog.js';
 
 export class PrismaAuditLogRepository implements IAuditLogRepository {
@@ -27,6 +27,31 @@ export class PrismaAuditLogRepository implements IAuditLogRepository {
       take: limit,
     });
     return rows.map(this.toDomain);
+  }
+
+  async findAll(query: AuditLogQuery): Promise<AuditLogPage> {
+    const { page, limit, userId, action, resourceType, from, to } = query;
+    const where: Prisma.AuditLogWhereInput = {
+      ...(userId !== undefined && { userId }),
+      ...(action !== undefined && { action }),
+      ...(resourceType !== undefined && { resourceType }),
+      ...((from !== undefined || to !== undefined) && {
+        createdAt: {
+          ...(from !== undefined && { gte: from }),
+          ...(to !== undefined && { lte: to }),
+        },
+      }),
+    };
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+    return { data: rows.map((r) => this.toDomain(r)), total };
   }
 
   private toDomain(row: {

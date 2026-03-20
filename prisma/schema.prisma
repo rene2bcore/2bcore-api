@@ -29,6 +29,7 @@ model User {
   emailVerificationTokens  EmailVerificationToken[]
   passwordResetTokens      PasswordResetToken[]
   webhookEndpoints         WebhookEndpoint[]
+  totpSecret               TotpSecret?
 
   @@index([email])
   @@map("users")
@@ -136,6 +137,20 @@ model AiUsageLog {
   @@index([userId])
   @@index([createdAt])
   @@map("ai_usage_logs")
+}
+
+model TotpSecret {
+  id          String    @id @default(cuid())
+  userId      String    @unique @map("user_id")
+  secret      String    @db.VarChar(64)
+  isEnabled   Boolean   @default(false) @map("is_enabled")
+  backupCodes Json      @default("[]") @map("backup_codes") // array of hashed backup codes
+  enabledAt   DateTime? @map("enabled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("totp_secrets")
 }
 
 model AuditLog {

@@ -103,6 +103,36 @@ export class InsufficientScopeError extends DomainError {
   }
 }
 
+export class TotpRequiredError extends DomainError {
+  constructor() {
+    super('Two-factor authentication code required', ERROR_CODES.TOTP_REQUIRED, HTTP_STATUS.UNAUTHORIZED);
+  }
+}
+
+export class TotpInvalidCodeError extends DomainError {
+  constructor() {
+    super('Invalid or expired TOTP code', ERROR_CODES.TOTP_INVALID_CODE, HTTP_STATUS.UNPROCESSABLE);
+  }
+}
+
+export class TotpAlreadyEnabledError extends ConflictError {
+  constructor() {
+    super('Two-factor authentication is already enabled');
+  }
+}
+
+export class TotpNotEnabledError extends DomainError {
+  constructor() {
+    super('Two-factor authentication is not enabled', ERROR_CODES.TOTP_NOT_ENABLED, HTTP_STATUS.BAD_REQUEST);
+  }
+}
+
+export class TotpChallengeInvalidError extends UnauthorizedError {
+  constructor() {
+    super('2FA challenge token is invalid or expired', ERROR_CODES.TOTP_CHALLENGE_INVALID);
+  }
+}
+
 export class AiBudgetExceededError extends DomainError {
   constructor() {
     super('Monthly AI token budget exceeded', ERROR_CODES.AI_BUDGET_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);

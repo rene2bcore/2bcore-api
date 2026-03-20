@@ -2,6 +2,7 @@ export type AuditAction =
   | 'USER_LOGIN'
   | 'USER_LOGOUT'
   | 'TOKEN_REFRESHED'
+  | 'SESSION_REVOKED'
   | 'API_KEY_CREATED'
   | 'API_KEY_REVOKED'
   | 'PASSWORD_CHANGED'
@@ -11,7 +12,10 @@ export type AuditAction =
   | 'AI_CHAT_REQUEST'
   | 'USER_EMAIL_VERIFIED'
   | 'USER_PASSWORD_RESET_REQUESTED'
-  | 'USER_PASSWORD_RESET';
+  | 'USER_PASSWORD_RESET'
+  | 'TOTP_ENABLED'
+  | 'TOTP_DISABLED'
+  | 'TOTP_CHALLENGE_FAILED';
 
 export interface AuditLog {
   id: string;

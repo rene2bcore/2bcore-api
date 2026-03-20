@@ -47,6 +47,10 @@ export async function seedTestUser(overrides?: {
   };
 }
 
+export async function seedAdminUser(overrides?: { email?: string; password?: string }): Promise<SeedUserResult> {
+  return seedTestUser({ ...overrides, role: 'ADMIN' });
+}
+
 export async function cleanupIntegrationData(): Promise<void> {
   const prisma = getPrismaClient();
   try {

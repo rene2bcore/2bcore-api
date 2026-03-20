@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { IUserRepository } from '../../../domain/repositories/IUserRepository.js';
 import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepository.js';
+import { ITotpRepository } from '../../../domain/repositories/ITotpRepository.js';
 import { AuthService, TokenPair } from '../../services/AuthService.js';
 import { InvalidCredentialsError, UnauthorizedError } from '../../../domain/errors/index.js';
 import { LoginInput } from '../../dtos/auth.dto.js';
@@ -10,19 +11,16 @@ export interface LoginContext {
   userAgent?: string | undefined;
 }
 
-export interface LoginResult extends TokenPair {
-  user: {
-    id: string;
-    email: string;
-    role: string;
-  };
-}
+export type LoginResult =
+  | ({ requires2fa: false } & TokenPair & { user: { id: string; email: string; role: string } })
+  | { requires2fa: true; challengeToken: string };
 
 export class LoginUseCase {
   constructor(
     private readonly userRepo: IUserRepository,
     private readonly authService: AuthService,
     private readonly auditRepo: IAuditLogRepository,
+    private readonly totpRepo?: ITotpRepository,
   ) {}
 
   async execute(input: LoginInput, ctx: LoginContext): Promise<LoginResult> {
@@ -50,6 +48,15 @@ export class LoginUseCase {
       throw new InvalidCredentialsError();
     }
 
+    // Check if 2FA is enabled — if so, issue challenge token instead of full session
+    if (this.totpRepo) {
+      const totp = await this.totpRepo.findByUserId(user.id);
+      if (totp?.isEnabled) {
+        const challengeToken = this.authService.issueChallengeToken(user.id, user.email, user.role);
+        return { requires2fa: true, challengeToken };
+      }
+    }
+
     const tokenPair = await this.authService.issueTokenPair(user.id, user.email, user.role, {
       ...(ctx.ipAddress !== undefined && { ipAddress: ctx.ipAddress }),
       ...(ctx.userAgent !== undefined && { userAgent: ctx.userAgent }),
@@ -64,6 +71,7 @@ export class LoginUseCase {
     });
 
     return {
+      requires2fa: false,
       ...tokenPair,
       user: { id: user.id, email: user.email, role: user.role },
     };

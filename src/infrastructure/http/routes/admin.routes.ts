@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { AdminListUsersQuerySchema, AdminUpdateUserInputSchema, AdminListAiUsageQuerySchema } from '../../../application/dtos/admin.dto.js';
+import { AdminListUsersQuerySchema, AdminUpdateUserInputSchema, AdminListAiUsageQuerySchema, AdminListAuditLogsQuerySchema } from '../../../application/dtos/admin.dto.js';
 import { ListUsersUseCase } from '../../../application/use-cases/admin/listUsers.js';
 import { GetUserUseCase } from '../../../application/use-cases/admin/getUser.js';
 import { UpdateUserUseCase } from '../../../application/use-cases/admin/updateUser.js';
 import { DeleteUserUseCase } from '../../../application/use-cases/admin/deleteUser.js';
 import { GetAllAiUsageUseCase } from '../../../application/use-cases/admin/getAllAiUsage.js';
+import { ListAuditLogsUseCase } from '../../../application/use-cases/admin/listAuditLogs.js';
 import { HTTP_STATUS } from '../../../shared/constants/index.js';
 
 interface AdminRoutesOptions {
@@ -13,6 +14,7 @@ interface AdminRoutesOptions {
   updateUserUseCase: UpdateUserUseCase;
   deleteUserUseCase: DeleteUserUseCase;
   getAllAiUsageUseCase: GetAllAiUsageUseCase;
+  listAuditLogsUseCase: ListAuditLogsUseCase;
 }
 
 const ErrorResponse = { $ref: 'ErrorResponse#' };
@@ -31,7 +33,7 @@ const UserPublicSchema = {
 } as const;
 
 export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOptions): Promise<void> {
-  const { listUsersUseCase, getUserUseCase, updateUserUseCase, deleteUserUseCase, getAllAiUsageUseCase } = opts;
+  const { listUsersUseCase, getUserUseCase, updateUserUseCase, deleteUserUseCase, getAllAiUsageUseCase, listAuditLogsUseCase } = opts;
   const verifyJWT = (fastify as any).verifyJWT;
   const requireAdmin = (fastify as any).requireAdmin;
   const adminGuard = [verifyJWT, requireAdmin];
@@ -250,6 +252,73 @@ export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOpt
     handler: async (request, reply) => {
       const query = AdminListAiUsageQuerySchema.parse(request.query);
       const result = await getAllAiUsageUseCase.execute(query);
+      return reply.status(HTTP_STATUS.OK).send(result);
+    },
+  });
+
+  // ── GET /v1/admin/audit-logs ────────────────────────────────────────
+  fastify.get('/audit-logs', {
+    schema: {
+      tags: ['Admin'],
+      summary: 'Query audit logs',
+      description: 'Paginated audit log query with optional filters. Requires ADMIN role.',
+      security: [{ BearerAuth: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+          userId: { type: 'string', description: 'Filter by user ID' },
+          action: { type: 'string', description: 'Filter by action type (e.g. USER_LOGIN)' },
+          resourceType: { type: 'string', description: 'Filter by resource type (e.g. user, ApiKey)' },
+          from: { type: 'string', format: 'date-time', description: 'ISO 8601 start date (inclusive)' },
+          to: { type: 'string', format: 'date-time', description: 'ISO 8601 end date (inclusive)' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  userId: { type: ['string', 'null'] },
+                  action: { type: 'string' },
+                  resourceType: { type: ['string', 'null'] },
+                  resourceId: { type: ['string', 'null'] },
+                  ipAddress: { type: ['string', 'null'] },
+                  userAgent: { type: ['string', 'null'] },
+                  metadata: { type: ['object', 'null'], additionalProperties: true },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
+                required: ['id', 'action', 'createdAt'],
+              },
+            },
+            pagination: {
+              type: 'object',
+              properties: {
+                page: { type: 'integer' },
+                limit: { type: 'integer' },
+                total: { type: 'integer' },
+                totalPages: { type: 'integer' },
+              },
+              required: ['page', 'limit', 'total', 'totalPages'],
+            },
+          },
+          required: ['data', 'pagination'],
+        },
+        401: ErrorResponse,
+        403: ErrorResponse,
+        422: ErrorResponse,
+      },
+    },
+    preHandler: adminGuard,
+    handler: async (request, reply) => {
+      const query = AdminListAuditLogsQuerySchema.parse(request.query);
+      const result = await listAuditLogsUseCase.execute(query);
       return reply.status(HTTP_STATUS.OK).send(result);
     },
   });

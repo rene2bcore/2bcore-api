@@ -7,6 +7,7 @@ import {
   TokenExpiredError,
   TokenRevokedError,
   UnauthorizedError,
+  TotpChallengeInvalidError,
 } from '../../domain/errors/index.js';
 
 export interface TokenPair {
@@ -164,6 +165,41 @@ export class AuthService {
   /** List active sessions for a user. */
   async listSessions(userId: string): Promise<Array<{ sessionId: string; createdAt: number; expiresAt: number; ipAddress?: string; userAgent?: string }>> {
     return this.refreshStore.listSessions(userId);
+  }
+
+  /**
+   * Issue a short-lived (5 min) challenge token used during 2FA login.
+   * The returned token is passed back via POST /v1/auth/2fa/challenge.
+   */
+  issueChallengeToken(userId: string, email: string, role: string): string {
+    return jwt.sign(
+      { sub: userId, email, role, type: '2fa-challenge' },
+      this.privateKey,
+      {
+        algorithm: 'RS256',
+        expiresIn: 5 * 60,
+        issuer: env.JWT_ISSUER,
+        audience: env.JWT_AUDIENCE,
+      },
+    );
+  }
+
+  /**
+   * Verify a 2FA challenge token. Returns the user payload or throws TotpChallengeInvalidError.
+   */
+  verifyChallengeToken(token: string): { sub: string; email: string; role: string } {
+    try {
+      const payload = jwt.verify(token, this.publicKey, {
+        algorithms: ['RS256'],
+        issuer: env.JWT_ISSUER,
+        audience: env.JWT_AUDIENCE,
+      }) as { sub: string; email: string; role: string; type: string };
+      if (payload.type !== '2fa-challenge') throw new TotpChallengeInvalidError();
+      return { sub: payload.sub, email: payload.email, role: payload.role };
+    } catch (err) {
+      if (err instanceof TotpChallengeInvalidError) throw err;
+      throw new TotpChallengeInvalidError();
+    }
   }
 
   /** Parse cookie value of format `<sessionId>.<refreshToken>`. Returns null if malformed. */

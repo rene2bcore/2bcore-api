@@ -70,6 +70,13 @@ import { RegisterUserUseCase } from '../../application/use-cases/users/register.
 import { GetMeUseCase } from '../../application/use-cases/users/getMe.js';
 import { UpdateMeUseCase } from '../../application/use-cases/users/updateMe.js';
 import { DeleteMeUseCase } from '../../application/use-cases/users/deleteMe.js';
+import { ListAuditLogsUseCase } from '../../application/use-cases/admin/listAuditLogs.js';
+import { SetupTotpUseCase } from '../../application/use-cases/auth/setupTotp.js';
+import { EnableTotpUseCase } from '../../application/use-cases/auth/enableTotp.js';
+import { DisableTotpUseCase } from '../../application/use-cases/auth/disableTotp.js';
+import { VerifyTotpChallengeUseCase } from '../../application/use-cases/auth/verifyTotpChallenge.js';
+import { GetTotpStatusUseCase } from '../../application/use-cases/auth/getTotpStatus.js';
+import { PrismaTotpRepository } from '../../infrastructure/db/repositories/totp.repository.js';
 import { CreateWebhookEndpointUseCase } from '../../application/use-cases/webhooks/createEndpoint.js';
 import { ListWebhookEndpointsUseCase } from '../../application/use-cases/webhooks/listEndpoints.js';
 import { GetWebhookEndpointUseCase } from '../../application/use-cases/webhooks/getEndpoint.js';
@@ -194,6 +201,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const emailVerificationRepo = new PrismaEmailVerificationRepository(prisma);
   const passwordResetRepo = new PrismaPasswordResetRepository(prisma);
   const webhookRepo = new PrismaWebhookRepository(prisma);
+  const totpRepo = new PrismaTotpRepository(prisma);
 
   // ── Services ───────────────────────────────────────────────────────
   const authService = new AuthService(tokenBlacklist, refreshTokenStore);
@@ -205,7 +213,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
   await fastify.register(authPlugin, { authService, apiKeyRepo });
 
   // ── Use cases ──────────────────────────────────────────────────────
-  const loginUseCase = new LoginUseCase(userRepo, authService, auditRepo);
+  const loginUseCase = new LoginUseCase(userRepo, authService, auditRepo, totpRepo);
   const refreshUseCase = new RefreshTokenUseCase(userRepo, authService, auditRepo);
   const logoutUseCase = new LogoutUseCase(authService, auditRepo);
   const listSessionsUseCase = new ListSessionsUseCase(authService);
@@ -235,6 +243,12 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const updateEndpointUseCase = new UpdateWebhookEndpointUseCase(webhookRepo);
   const deleteEndpointUseCase = new DeleteWebhookEndpointUseCase(webhookRepo);
   const listDeliveriesUseCase = new ListWebhookDeliveriesUseCase(webhookRepo);
+  const listAuditLogsUseCase = new ListAuditLogsUseCase(auditRepo);
+  const setupTotpUseCase = new SetupTotpUseCase(totpRepo);
+  const enableTotpUseCase = new EnableTotpUseCase(totpRepo, auditRepo);
+  const disableTotpUseCase = new DisableTotpUseCase(totpRepo, auditRepo);
+  const verifyTotpChallengeUseCase = new VerifyTotpChallengeUseCase(totpRepo, authService, auditRepo);
+  const getTotpStatusUseCase = new GetTotpStatusUseCase(totpRepo);
 
   // ── Global error handler (must be set BEFORE route registrations) ──
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -307,6 +321,11 @@ export async function buildApp(overrides: AppOverrides = {}) {
     verifyEmailUseCase,
     forgotPasswordUseCase,
     resetPasswordUseCase,
+    setupTotpUseCase,
+    enableTotpUseCase,
+    disableTotpUseCase,
+    verifyTotpChallengeUseCase,
+    getTotpStatusUseCase,
   });
 
   await fastify.register(keysRoutes, {
@@ -338,6 +357,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
     updateUserUseCase,
     deleteUserUseCase,
     getAllAiUsageUseCase,
+    listAuditLogsUseCase,
   });
 
   await fastify.register(webhookRoutes, {
