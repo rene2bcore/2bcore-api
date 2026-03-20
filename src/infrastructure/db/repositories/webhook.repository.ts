@@ -53,6 +53,7 @@ export class PrismaWebhookRepository implements IWebhookRepository {
         ...(input.url !== undefined && { url: input.url }),
         ...(input.events !== undefined && { events: input.events }),
         ...(input.isActive !== undefined && { isActive: input.isActive }),
+        ...(input.secret !== undefined && { secret: input.secret }),
       },
     });
     return this.toEndpointDomain(row);

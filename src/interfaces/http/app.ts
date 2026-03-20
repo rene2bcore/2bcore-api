@@ -83,6 +83,8 @@ import { GetWebhookEndpointUseCase } from '../../application/use-cases/webhooks/
 import { UpdateWebhookEndpointUseCase } from '../../application/use-cases/webhooks/updateEndpoint.js';
 import { DeleteWebhookEndpointUseCase } from '../../application/use-cases/webhooks/deleteEndpoint.js';
 import { ListWebhookDeliveriesUseCase } from '../../application/use-cases/webhooks/listDeliveries.js';
+import { RotateWebhookSecretUseCase } from '../../application/use-cases/webhooks/rotateSecret.js';
+import { RotateApiKeyUseCase } from '../../application/use-cases/keys/rotateApiKey.js';
 import { WebhookDeliveryService } from '../../infrastructure/webhooks/WebhookDeliveryService.js';
 
 // Error types
@@ -243,6 +245,8 @@ export async function buildApp(overrides: AppOverrides = {}) {
   const updateEndpointUseCase = new UpdateWebhookEndpointUseCase(webhookRepo);
   const deleteEndpointUseCase = new DeleteWebhookEndpointUseCase(webhookRepo);
   const listDeliveriesUseCase = new ListWebhookDeliveriesUseCase(webhookRepo);
+  const rotateSecretUseCase = new RotateWebhookSecretUseCase(webhookRepo, auditRepo, webhookService);
+  const rotateApiKeyUseCase = new RotateApiKeyUseCase(apiKeyRepo, auditRepo, webhookService);
   const listAuditLogsUseCase = new ListAuditLogsUseCase(auditRepo);
   const setupTotpUseCase = new SetupTotpUseCase(totpRepo);
   const enableTotpUseCase = new EnableTotpUseCase(totpRepo, auditRepo);
@@ -334,6 +338,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
     listApiKeysUseCase,
     revokeApiKeyUseCase,
     getApiKeyUseCase,
+    rotateApiKeyUseCase,
   });
 
   await fastify.register(aiRoutes, {
@@ -368,6 +373,7 @@ export async function buildApp(overrides: AppOverrides = {}) {
     updateEndpointUseCase,
     deleteEndpointUseCase,
     listDeliveriesUseCase,
+    rotateSecretUseCase,
   });
 
   return fastify;

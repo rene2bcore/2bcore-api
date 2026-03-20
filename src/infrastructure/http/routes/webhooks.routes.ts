@@ -5,6 +5,7 @@ import { GetWebhookEndpointUseCase } from '../../../application/use-cases/webhoo
 import { UpdateWebhookEndpointUseCase } from '../../../application/use-cases/webhooks/updateEndpoint.js';
 import { DeleteWebhookEndpointUseCase } from '../../../application/use-cases/webhooks/deleteEndpoint.js';
 import { ListWebhookDeliveriesUseCase } from '../../../application/use-cases/webhooks/listDeliveries.js';
+import { RotateWebhookSecretUseCase } from '../../../application/use-cases/webhooks/rotateSecret.js';
 import { CreateWebhookInputSchema, UpdateWebhookInputSchema } from '../../../application/dtos/webhook.dto.js';
 import { HTTP_STATUS, ALL_WEBHOOK_EVENTS } from '../../../shared/constants/index.js';
 
@@ -15,6 +16,7 @@ interface WebhookRoutesOptions {
   updateEndpointUseCase: UpdateWebhookEndpointUseCase;
   deleteEndpointUseCase: DeleteWebhookEndpointUseCase;
   listDeliveriesUseCase: ListWebhookDeliveriesUseCase;
+  rotateSecretUseCase: RotateWebhookSecretUseCase;
 }
 
 const ErrorResponse = { $ref: 'ErrorResponse#' };
@@ -63,6 +65,7 @@ export async function webhookRoutes(fastify: FastifyInstance, opts: WebhookRoute
     updateEndpointUseCase,
     deleteEndpointUseCase,
     listDeliveriesUseCase,
+    rotateSecretUseCase,
   } = opts;
 
   const verifyJWT = (fastify as any).verifyJWT;
@@ -246,6 +249,49 @@ export async function webhookRoutes(fastify: FastifyInstance, opts: WebhookRoute
       const { id } = request.params as { id: string };
       await deleteEndpointUseCase.execute(userId, id);
       return reply.status(HTTP_STATUS.NO_CONTENT).send();
+    },
+  });
+
+  // ── POST /webhooks/:id/rotate-secret ──────────────────────────────
+  fastify.post('/:id/rotate-secret', {
+    schema: {
+      tags: ['Webhooks'],
+      summary: 'Rotate webhook signing secret',
+      description: 'Generate a new HMAC signing secret for a webhook endpoint. The new secret is returned **once** — update your receiver immediately. JWT required.',
+      security: [{ BearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string' } },
+      },
+      response: {
+        200: {
+          allOf: [
+            EndpointPublic,
+            {
+              type: 'object',
+              properties: {
+                secret: { type: 'string', description: 'New HMAC signing secret — shown once, store securely' },
+              },
+              required: ['secret'],
+            },
+          ],
+        },
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const { id } = request.params as { id: string };
+      const result = await rotateSecretUseCase.execute(userId, id);
+      return reply.status(HTTP_STATUS.OK).send({
+        ...result,
+        createdAt: result.createdAt instanceof Date ? result.createdAt.toISOString() : result.createdAt,
+        updatedAt: result.updatedAt instanceof Date ? result.updatedAt.toISOString() : result.updatedAt,
+      });
     },
   });
 

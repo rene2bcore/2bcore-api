@@ -290,6 +290,86 @@ describe('Webhook endpoints', () => {
     });
   });
 
+  // ── POST /v1/webhooks/:id/rotate-secret ───────────────────────────
+
+  describe('POST /v1/webhooks/:id/rotate-secret', () => {
+    it('returns 200 with a new secret', async () => {
+      const ep = await createEndpoint('https://example.com/hook-rotate');
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/webhooks/${ep.id}/rotate-secret`,
+        headers: { authorization: `Bearer ${jwtToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.id).toBe(ep.id);
+      expect(body.secret).toBeTypeOf('string');
+      expect(body.secret).toMatch(/^[0-9a-f]{64}$/);
+      expect(body.secret).not.toBe(ep.secret);
+    });
+
+    it('new secret is present; old is not returned again', async () => {
+      const ep = await createEndpoint('https://example.com/hook-rotate-2');
+
+      const rotateRes = await app.inject({
+        method: 'POST',
+        url: `/v1/webhooks/${ep.id}/rotate-secret`,
+        headers: { authorization: `Bearer ${jwtToken}` },
+      });
+      expect(rotateRes.statusCode).toBe(200);
+      expect(rotateRes.json().secret).not.toBe(ep.secret);
+
+      // GET does not expose secret
+      const getRes = await app.inject({
+        method: 'GET',
+        url: `/v1/webhooks/${ep.id}`,
+        headers: { authorization: `Bearer ${jwtToken}` },
+      });
+      expect(getRes.json()).not.toHaveProperty('secret');
+    });
+
+    it('returns 403 when rotating another user\'s endpoint secret', async () => {
+      const ep = await createEndpoint('https://example.com/hook-rotate-iso');
+
+      const regRes = await app.inject({
+        method: 'POST',
+        url: '/v1/users/register',
+        payload: { email: `rotate-secret-iso-${Date.now()}@test.com`, password: 'Password123!' },
+      });
+      const loginRes = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: regRes.json().email, password: 'Password123!' },
+      });
+      const otherToken = loginRes.json().accessToken as string;
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/webhooks/${ep.id}/rotate-secret`,
+        headers: { authorization: `Bearer ${otherToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('returns 404 for unknown endpoint', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/webhooks/nonexistent-id/rotate-secret',
+        headers: { authorization: `Bearer ${jwtToken}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('returns 401 without JWT', async () => {
+      const ep = await createEndpoint('https://example.com/hook-rotate-unauth');
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/webhooks/${ep.id}/rotate-secret`,
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
   // ── Cross-user isolation ───────────────────────────────────────────
 
   describe('cross-user isolation', () => {

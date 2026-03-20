@@ -11,6 +11,7 @@ export interface UpdateWebhookEndpointInput {
   url?: string;
   events?: string[];
   isActive?: boolean;
+  secret?: string;
 }
 
 export interface CreateDeliveryInput {

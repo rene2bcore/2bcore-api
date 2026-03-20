@@ -253,6 +253,100 @@ describe('API Keys routes', () => {
     });
   });
 
+  // ── POST /v1/keys/:id/rotate ───────────────────────────────────────
+
+  describe('POST /v1/keys/:id/rotate', () => {
+    it('returns 200 with a new raw key', async () => {
+      const created = await createKey(primaryToken, 'Rotate Me');
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/keys/${created.id}/rotate`,
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.id).toBe(created.id);
+      expect(body.key).toBeTypeOf('string');
+      expect(body.key).toMatch(/^sk-live-/);
+      expect(body.key).not.toBe(created.key);
+    });
+
+    it('old key is invalidated after rotation', async () => {
+      const created = await createKey(primaryToken, 'Invalidate Old');
+
+      await app.inject({
+        method: 'POST',
+        url: `/v1/keys/${created.id}/rotate`,
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/keys',
+        headers: { 'x-api-key': created.key },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('new key from rotation is immediately usable', async () => {
+      const created = await createKey(primaryToken, 'Use After Rotate');
+
+      const rotateRes = await app.inject({
+        method: 'POST',
+        url: `/v1/keys/${created.id}/rotate`,
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+      const { key: newKey } = rotateRes.json();
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/v1/keys',
+        headers: { 'x-api-key': newKey },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('returns 403 when rotating another user\'s key', async () => {
+      const secondaryToken = await login(secondary);
+      const secondaryKey = await createKey(secondaryToken, 'Other Rotate');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/keys/${secondaryKey.id}/rotate`,
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('returns 404 for non-existent key', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/keys/nonexistent-rotate-id/rotate',
+        headers: { authorization: `Bearer ${primaryToken}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('returns 401 without credentials', async () => {
+      const created = await createKey(primaryToken, 'Unauth Rotate');
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/keys/${created.id}/rotate`,
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('returns 401 — cannot rotate via API key (verifyJWT only)', async () => {
+      const created = await createKey(primaryToken, 'Api Key Rotate Attempt');
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/keys/${created.id}/rotate`,
+        headers: { 'x-api-key': created.key },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
   // ── GET /v1/keys/:id ───────────────────────────────────────────────
 
   describe('GET /v1/keys/:id', () => {

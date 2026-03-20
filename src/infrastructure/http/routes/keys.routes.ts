@@ -3,6 +3,7 @@ import { CreateApiKeyUseCase } from '../../../application/use-cases/keys/createA
 import { ListApiKeysUseCase } from '../../../application/use-cases/keys/listApiKeys.js';
 import { RevokeApiKeyUseCase } from '../../../application/use-cases/keys/revokeApiKey.js';
 import { GetApiKeyUseCase } from '../../../application/use-cases/keys/getApiKey.js';
+import { RotateApiKeyUseCase } from '../../../application/use-cases/keys/rotateApiKey.js';
 import { CreateApiKeyInputSchema } from '../../../application/dtos/apikey.dto.js';
 import { HTTP_STATUS, ALL_SCOPES } from '../../../shared/constants/index.js';
 
@@ -11,6 +12,7 @@ interface KeysRoutesOptions {
   listApiKeysUseCase: ListApiKeysUseCase;
   revokeApiKeyUseCase: RevokeApiKeyUseCase;
   getApiKeyUseCase: GetApiKeyUseCase;
+  rotateApiKeyUseCase: RotateApiKeyUseCase;
 }
 
 const ErrorResponse = { $ref: 'ErrorResponse#' };
@@ -37,7 +39,7 @@ const ApiKeyMeta = {
 };
 
 export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptions): Promise<void> {
-  const { createApiKeyUseCase, listApiKeysUseCase, revokeApiKeyUseCase, getApiKeyUseCase } = opts;
+  const { createApiKeyUseCase, listApiKeysUseCase, revokeApiKeyUseCase, getApiKeyUseCase, rotateApiKeyUseCase } = opts;
 
   const verifyJWT = (fastify as any).verifyJWT;
   const verifyAuth = (fastify as any).verifyAuth;
@@ -142,6 +144,47 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
       const userId = request.user!.sub;
       const { id } = request.params as { id: string };
       const result = await getApiKeyUseCase.execute(userId, id);
+      return reply.status(HTTP_STATUS.OK).send(result);
+    },
+  });
+
+  // ── POST /keys/:id/rotate ──────────────────────────────────────────
+  fastify.post('/:id/rotate', {
+    schema: {
+      tags: ['API Keys'],
+      summary: 'Rotate API key',
+      description: 'Issue a new key value for an existing API key record. The old key is immediately invalidated. The new raw key is returned **once** — store it securely. JWT required.',
+      security: [{ BearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', description: 'API key ID' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            key: { type: 'string', description: 'New raw key — shown once, store securely' },
+            prefix: { type: 'string' },
+            scopes: ScopesProperty,
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+          required: ['id', 'name', 'key', 'prefix', 'scopes', 'createdAt'],
+        },
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+    },
+    preHandler: [verifyJWT],
+    handler: async (request, reply) => {
+      const userId = request.user!.sub;
+      const { id } = request.params as { id: string };
+      const result = await rotateApiKeyUseCase.execute(userId, id);
       return reply.status(HTTP_STATUS.OK).send(result);
     },
   });

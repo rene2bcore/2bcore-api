@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { IApiKeyRepository, CreateApiKeyInput } from '../../../domain/repositories/IApiKeyRepository.js';
+import { IApiKeyRepository, CreateApiKeyInput, RotateApiKeyInput } from '../../../domain/repositories/IApiKeyRepository.js';
 import { ApiKey } from '../../../domain/entities/ApiKey.js';
 
 export class PrismaApiKeyRepository implements IApiKeyRepository {
@@ -31,6 +31,20 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
         keyHash: input.keyHash,
         prefix: input.prefix,
         scopes: input.scopes ?? [],
+      },
+    });
+    return this.toDomain(row);
+  }
+
+  async rotate(id: string, input: RotateApiKeyInput): Promise<ApiKey> {
+    const row = await this.prisma.apiKey.update({
+      where: { id },
+      data: {
+        keyHash: input.keyHash,
+        prefix: input.prefix,
+        lastUsedAt: null,
+        revokedAt: null,
+        isActive: true,
       },
     });
     return this.toDomain(row);
