@@ -12,7 +12,10 @@ interface RateLimitPluginOptions {
 export const rateLimitPlugin = fp(async (fastify: FastifyInstance, opts: RateLimitPluginOptions) => {
   await fastify.register(rateLimit, {
     global: true,
-    max: env.RATE_LIMIT_GLOBAL_MAX,
+    // max may be a function: use per-API-key limit when set, otherwise fall back to global default
+    max(request, _key) {
+      return request.apiKeyRateLimit ?? env.RATE_LIMIT_GLOBAL_MAX;
+    },
     timeWindow: env.RATE_LIMIT_GLOBAL_WINDOW_MS,
     redis: opts.redis,
     keyGenerator(request) {

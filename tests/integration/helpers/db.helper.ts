@@ -16,11 +16,13 @@ export async function seedTestUser(overrides?: {
   password?: string;
   role?: 'USER' | 'ADMIN';
   isActive?: boolean;
+  emailVerified?: boolean;
 }): Promise<SeedUserResult> {
   const prisma = getPrismaClient();
   const email = overrides?.email ?? `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
   const password = overrides?.password ?? TEST_PASSWORD;
   const passwordHash = await bcrypt.hash(password, 10);
+  const emailVerified = overrides?.emailVerified ?? true;
 
   const row = await prisma.user.create({
     data: {
@@ -28,6 +30,8 @@ export async function seedTestUser(overrides?: {
       passwordHash,
       role: overrides?.role ?? 'USER',
       isActive: overrides?.isActive ?? true,
+      emailVerified,
+      ...(emailVerified && { emailVerifiedAt: new Date() }),
     },
   });
 
@@ -49,6 +53,15 @@ export async function seedTestUser(overrides?: {
 
 export async function seedAdminUser(overrides?: { email?: string; password?: string }): Promise<SeedUserResult> {
   return seedTestUser({ ...overrides, role: 'ADMIN' });
+}
+
+/** Mark a user as email-verified directly in the DB. Useful after registration when tests need to login. */
+export async function verifyUserEmail(email: string): Promise<void> {
+  const prisma = getPrismaClient();
+  await prisma.user.update({
+    where: { email },
+    data: { emailVerified: true, emailVerifiedAt: new Date() },
+  });
 }
 
 export async function cleanupIntegrationData(): Promise<void> {

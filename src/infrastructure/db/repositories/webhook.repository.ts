@@ -4,6 +4,8 @@ import {
   CreateWebhookEndpointInput,
   UpdateWebhookEndpointInput,
   CreateDeliveryInput,
+  FindEndpointsByUserIdOptions,
+  WebhookEndpointPage,
 } from '../../../domain/repositories/IWebhookRepository.js';
 import { WebhookEndpoint, WebhookDelivery } from '../../../domain/entities/Webhook.js';
 
@@ -15,12 +17,30 @@ export class PrismaWebhookRepository implements IWebhookRepository {
     return row ? this.toEndpointDomain(row) : null;
   }
 
-  async findEndpointsByUserId(userId: string): Promise<WebhookEndpoint[]> {
+  async findEndpointsByUserId(userId: string, options?: FindEndpointsByUserIdOptions): Promise<WebhookEndpoint[]> {
     const rows = await this.prisma.webhookEndpoint.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      ...(options !== undefined && {
+        skip: (options.page - 1) * options.limit,
+        take: options.limit,
+      }),
     });
     return rows.map((r) => this.toEndpointDomain(r));
+  }
+
+  async findEndpointsByUserIdPaged(userId: string, options: FindEndpointsByUserIdOptions): Promise<WebhookEndpointPage> {
+    const { page, limit } = options;
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.webhookEndpoint.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.webhookEndpoint.count({ where: { userId } }),
+    ]);
+    return { data: rows.map((r) => this.toEndpointDomain(r)), total };
   }
 
   async findActiveEndpointsForEvent(userId: string, event: string): Promise<WebhookEndpoint[]> {

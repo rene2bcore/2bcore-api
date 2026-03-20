@@ -64,8 +64,10 @@ describe('Admin routes', () => {
       const body = res.json();
       expect(body.data).toBeInstanceOf(Array);
       expect(body.data.length).toBeGreaterThanOrEqual(2);
-      expect(body.pagination).toHaveProperty('total');
-      expect(body.pagination).toHaveProperty('totalPages');
+      expect(body).toHaveProperty('total');
+      expect(body).toHaveProperty('totalPages');
+      expect(body).toHaveProperty('page');
+      expect(body).toHaveProperty('limit');
     });
 
     it('does not include passwordHash in response', async () => {
@@ -105,7 +107,7 @@ describe('Admin routes', () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().data).toHaveLength(1);
-      expect(res.json().pagination.limit).toBe(1);
+      expect(res.json().limit).toBe(1);
     });
   });
 
@@ -267,7 +269,7 @@ describe('Admin routes', () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.data).toBeInstanceOf(Array);
-      expect(body.pagination).toHaveProperty('total');
+      expect(body).toHaveProperty('total');
       expect(body.summary).toHaveProperty('totalCostUsd');
     });
 

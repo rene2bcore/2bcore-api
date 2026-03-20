@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LoginUseCase } from '../../../src/application/use-cases/auth/login.js';
-import { InvalidCredentialsError, UnauthorizedError } from '../../../src/domain/errors/index.js';
+import { InvalidCredentialsError, UnauthorizedError, EmailNotVerifiedError } from '../../../src/domain/errors/index.js';
 import type { IUserRepository } from '../../../src/domain/repositories/IUserRepository.js';
 import type { IAuditLogRepository } from '../../../src/domain/repositories/IAuditLogRepository.js';
 import type { AuthService } from '../../../src/application/services/AuthService.js';
@@ -101,6 +101,16 @@ describe('LoginUseCase', () => {
         metadata: expect.objectContaining({ success: false }),
       }),
     );
+  });
+
+  it('throws EmailNotVerifiedError when email is not verified', async () => {
+    const bcrypt = await import('bcryptjs');
+    const hash = await bcrypt.hash('Password123!', 4);
+    vi.mocked(userRepo.findByEmail).mockResolvedValue(makeUser({ passwordHash: hash, emailVerified: false }));
+
+    await expect(
+      loginUseCase.execute({ email: 'alice@example.com', password: 'Password123!' }, {}),
+    ).rejects.toThrow(EmailNotVerifiedError);
   });
 
   it('returns token pair and user on successful login', async () => {

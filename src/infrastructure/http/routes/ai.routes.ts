@@ -170,16 +170,10 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
                 required: ['id', 'requestId', 'model', 'inputTokens', 'outputTokens', 'totalTokens', 'estimatedCostUsd', 'stream', 'createdAt'],
               },
             },
-            pagination: {
-              type: 'object',
-              properties: {
-                page: { type: 'integer' },
-                limit: { type: 'integer' },
-                total: { type: 'integer' },
-                totalPages: { type: 'integer' },
-              },
-              required: ['page', 'limit', 'total', 'totalPages'],
-            },
+            total: { type: 'integer' },
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            totalPages: { type: 'integer' },
             summary: {
               type: 'object',
               properties: {
@@ -191,7 +185,7 @@ export async function aiRoutes(fastify: FastifyInstance, opts: AiRoutesOptions):
               required: ['totalInputTokens', 'totalOutputTokens', 'totalTokens', 'totalCostUsd'],
             },
           },
-          required: ['data', 'pagination', 'summary'],
+          required: ['data', 'total', 'page', 'limit', 'totalPages', 'summary'],
         },
         401: ErrorResponse,
         422: ErrorResponse,

@@ -271,10 +271,10 @@ describe('AI routes', () => {
       const body = res.json();
       expect(body.data).toBeInstanceOf(Array);
       expect(body.data.length).toBeGreaterThanOrEqual(3);
-      expect(body.pagination.page).toBe(1);
-      expect(body.pagination.limit).toBe(20);
-      expect(body.pagination.total).toBeGreaterThanOrEqual(3);
-      expect(body.pagination.totalPages).toBeGreaterThanOrEqual(1);
+      expect(body.page).toBe(1);
+      expect(body.limit).toBe(20);
+      expect(body.total).toBeGreaterThanOrEqual(3);
+      expect(body.totalPages).toBeGreaterThanOrEqual(1);
     });
 
     it('returns correct log shape', async () => {
@@ -317,7 +317,7 @@ describe('AI routes', () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.data).toHaveLength(1);
-      expect(body.pagination.limit).toBe(1);
+      expect(body.limit).toBe(1);
     });
 
     it('returns 401 without credentials', async () => {
@@ -328,13 +328,13 @@ describe('AI routes', () => {
       expect(res.statusCode).toBe(401);
     });
 
-    it('returns 401 with API key (JWT-only endpoint)', async () => {
+    it('returns 200 with API key (endpoint accepts both JWT and API key auth)', async () => {
       const res = await app.inject({
         method: 'GET',
         url: '/v1/ai/usage',
         headers: { 'x-api-key': apiKey },
       });
-      expect(res.statusCode).toBe(401);
+      expect(res.statusCode).toBe(200);
     });
 
     it('filters by from date — past date returns logs', async () => {
@@ -372,7 +372,7 @@ describe('AI routes', () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.data).toHaveLength(0);
-      expect(body.pagination.total).toBe(0);
+      expect(body.total).toBe(0);
     });
 
     it('returns 422 VAL_001 for invalid from date', async () => {

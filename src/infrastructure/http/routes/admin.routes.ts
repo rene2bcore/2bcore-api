@@ -57,18 +57,12 @@ export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOpt
           type: 'object',
           properties: {
             data: { type: 'array', items: UserPublicSchema },
-            pagination: {
-              type: 'object',
-              properties: {
-                page: { type: 'integer' },
-                limit: { type: 'integer' },
-                total: { type: 'integer' },
-                totalPages: { type: 'integer' },
-              },
-              required: ['page', 'limit', 'total', 'totalPages'],
-            },
+            total: { type: 'integer' },
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            totalPages: { type: 'integer' },
           },
-          required: ['data', 'pagination'],
+          required: ['data', 'total', 'page', 'limit', 'totalPages'],
         },
         401: ErrorResponse,
         403: ErrorResponse,
@@ -220,16 +214,10 @@ export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOpt
                 required: ['id', 'requestId', 'model', 'inputTokens', 'outputTokens', 'totalTokens', 'estimatedCostUsd', 'stream', 'createdAt'],
               },
             },
-            pagination: {
-              type: 'object',
-              properties: {
-                page: { type: 'integer' },
-                limit: { type: 'integer' },
-                total: { type: 'integer' },
-                totalPages: { type: 'integer' },
-              },
-              required: ['page', 'limit', 'total', 'totalPages'],
-            },
+            total: { type: 'integer' },
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            totalPages: { type: 'integer' },
             summary: {
               type: 'object',
               properties: {
@@ -241,7 +229,7 @@ export async function adminRoutes(fastify: FastifyInstance, opts: AdminRoutesOpt
               required: ['totalInputTokens', 'totalOutputTokens', 'totalTokens', 'totalCostUsd'],
             },
           },
-          required: ['data', 'pagination', 'summary'],
+          required: ['data', 'total', 'page', 'limit', 'totalPages', 'summary'],
         },
         401: ErrorResponse,
         403: ErrorResponse,

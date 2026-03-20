@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { IApiKeyRepository, CreateApiKeyInput, RotateApiKeyInput } from '../../../domain/repositories/IApiKeyRepository.js';
+import { IApiKeyRepository, CreateApiKeyInput, RotateApiKeyInput, FindApiKeysByUserIdOptions, ApiKeyPage } from '../../../domain/repositories/IApiKeyRepository.js';
 import { ApiKey } from '../../../domain/entities/ApiKey.js';
 
 export class PrismaApiKeyRepository implements IApiKeyRepository {
@@ -15,12 +15,30 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
     return row ? this.toDomain(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<ApiKey[]> {
+  async findByUserId(userId: string, options?: FindApiKeysByUserIdOptions): Promise<ApiKey[]> {
     const rows = await this.prisma.apiKey.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      ...(options !== undefined && {
+        skip: (options.page - 1) * options.limit,
+        take: options.limit,
+      }),
     });
     return rows.map((r) => this.toDomain(r));
+  }
+
+  async findByUserIdPaged(userId: string, options: FindApiKeysByUserIdOptions): Promise<ApiKeyPage> {
+    const { page, limit } = options;
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.apiKey.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.apiKey.count({ where: { userId } }),
+    ]);
+    return { data: rows.map((r) => this.toDomain(r)), total };
   }
 
   async create(input: CreateApiKeyInput): Promise<ApiKey> {
@@ -31,6 +49,7 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
         keyHash: input.keyHash,
         prefix: input.prefix,
         scopes: input.scopes ?? [],
+        ...(input.rateLimit !== undefined && { rateLimit: input.rateLimit }),
       },
     });
     return this.toDomain(row);
@@ -76,6 +95,7 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
     lastUsedAt: Date | null;
     createdAt: Date;
     revokedAt: Date | null;
+    rateLimit?: number | null;
   }): ApiKey {
     return {
       id: row.id,
@@ -88,6 +108,7 @@ export class PrismaApiKeyRepository implements IApiKeyRepository {
       lastUsedAt: row.lastUsedAt,
       createdAt: row.createdAt,
       revokedAt: row.revokedAt,
+      rateLimit: row.rateLimit ?? null,
     };
   }
 }

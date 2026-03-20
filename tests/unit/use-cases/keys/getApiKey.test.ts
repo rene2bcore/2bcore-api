@@ -15,6 +15,7 @@ const baseKey: ApiKey = {
   lastUsedAt: null,
   createdAt: new Date(),
   revokedAt: null,
+  rateLimit: null,
 };
 
 function makeRepo(key: ApiKey | null = baseKey): IApiKeyRepository {

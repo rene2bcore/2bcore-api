@@ -41,7 +41,7 @@ describe('GetAllAiUsageUseCase', () => {
     const result = await useCase.execute(defaultQuery);
 
     expect(result.data).toHaveLength(2);
-    expect(result.pagination.total).toBe(2);
+    expect(result.total).toBe(2);
   });
 
   it('passes optional userId filter to repository', async () => {

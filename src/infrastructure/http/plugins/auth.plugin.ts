@@ -19,6 +19,8 @@ declare module 'fastify' {
       /** Scopes attached to the API key. Empty = wildcard. Only set for apikey type. */
       scopes?: string[];
     };
+    /** Per-API-key rate limit (requests/minute). Null means use global default. */
+    apiKeyRateLimit: number | null;
   }
 }
 
@@ -29,6 +31,11 @@ interface AuthPluginOptions {
 
 export const authPlugin = fp(async (fastify: FastifyInstance, opts: AuthPluginOptions) => {
   const { authService, apiKeyRepo } = opts;
+
+  // Initialise apiKeyRateLimit to null for every request (JWT or unauthenticated)
+  fastify.addHook('onRequest', async (request) => {
+    request.apiKeyRateLimit = null;
+  });
 
   /**
    * Decorator: verifyJWT
@@ -64,6 +71,9 @@ export const authPlugin = fp(async (fastify: FastifyInstance, opts: AuthPluginOp
 
     // Update last used async — don't await to avoid adding latency
     void apiKeyRepo.updateLastUsed(key.id);
+
+    // Attach per-key rate limit for use by the rate-limit plugin
+    request.apiKeyRateLimit = key.rateLimit;
 
     request.user = {
       sub: key.userId,

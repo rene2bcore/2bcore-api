@@ -10,6 +10,8 @@ function makeUser(overrides: Partial<User> = {}): User {
     passwordHash: 'hash',
     role: 'USER',
     isActive: true,
+    emailVerified: true,
+    emailVerifiedAt: null,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
@@ -37,7 +39,10 @@ describe('ListUsersUseCase', () => {
 
     expect(result.data).toHaveLength(2);
     expect(result.data[0]).not.toHaveProperty('passwordHash');
-    expect(result.pagination).toEqual({ page: 1, limit: 20, total: 2, totalPages: 1 });
+    expect(result.total).toBe(2);
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(20);
+    expect(result.totalPages).toBe(1);
   });
 
   it('calculates totalPages correctly', async () => {
@@ -46,7 +51,7 @@ describe('ListUsersUseCase', () => {
 
     const result = await useCase.execute({ page: 1, limit: 20 });
 
-    expect(result.pagination.totalPages).toBe(3);
+    expect(result.totalPages).toBe(3);
   });
 
   it('delegates page and limit to the repository', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestApp, closeTestApp, type TestApp } from './helpers/app.helper.js';
-import { seedTestUser, cleanupIntegrationData, type SeedUserResult } from './helpers/db.helper.js';
+import { seedTestUser, cleanupIntegrationData, verifyUserEmail, type SeedUserResult } from './helpers/db.helper.js';
 
 describe('Webhook endpoints', () => {
   let app: TestApp;
@@ -331,15 +331,11 @@ describe('Webhook endpoints', () => {
     it('returns 403 when rotating another user\'s endpoint secret', async () => {
       const ep = await createEndpoint('https://example.com/hook-rotate-iso');
 
-      const regRes = await app.inject({
-        method: 'POST',
-        url: '/v1/users/register',
-        payload: { email: `rotate-secret-iso-${Date.now()}@test.com`, password: 'Password123!' },
-      });
+      const otherUser = await seedTestUser();
       const loginRes = await app.inject({
         method: 'POST',
         url: '/v1/auth/login',
-        payload: { email: regRes.json().email, password: 'Password123!' },
+        payload: { email: otherUser.user.email, password: otherUser.password },
       });
       const otherToken = loginRes.json().accessToken as string;
 
@@ -376,18 +372,12 @@ describe('Webhook endpoints', () => {
     it('prevents user B from accessing user A endpoint', async () => {
       const ep = await createEndpoint('https://example.com/hook-isolation');
 
-      // Register second user
-      const regRes = await app.inject({
-        method: 'POST',
-        url: '/v1/users/register',
-        payload: { email: `webhook-isolation-${Date.now()}@test.com`, password: 'Password123!' },
-      });
-      expect(regRes.statusCode).toBe(201);
-
+      // Seed verified second user
+      const otherUser = await seedTestUser();
       const loginRes = await app.inject({
         method: 'POST',
         url: '/v1/auth/login',
-        payload: { email: regRes.json().email, password: 'Password123!' },
+        payload: { email: otherUser.user.email, password: otherUser.password },
       });
       const otherToken = loginRes.json().accessToken as string;
 

@@ -1,8 +1,10 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-node';
 import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { FastifyInstrumentation } from '@opentelemetry/instrumentation-fastify';
+import { PrismaInstrumentation } from '@prisma/instrumentation';
 import { Resource } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
 import { env } from '../../shared/config/env.js';
@@ -21,17 +23,19 @@ export function initTracing(): void {
     () => logger.info({ port: env.OTEL_METRICS_PORT }, 'Prometheus metrics available'),
   );
 
+  // Use OTLP exporter when endpoint is configured; fall back to ConsoleSpanExporter in dev
+  const traceExporter = env.OTEL_EXPORTER_OTLP_ENDPOINT
+    ? new OTLPTraceExporter({ url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` })
+    : new ConsoleSpanExporter();
+
   sdk = new NodeSDK({
     resource,
-    ...(env.OTEL_EXPORTER_OTLP_ENDPOINT && {
-      traceExporter: new OTLPTraceExporter({
-        url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`,
-      }),
-    }),
+    traceExporter,
     metricReader: metricsExporter,
     instrumentations: [
       new HttpInstrumentation(),
       new FastifyInstrumentation(),
+      new PrismaInstrumentation(),
     ],
   });
 

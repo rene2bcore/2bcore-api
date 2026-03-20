@@ -223,16 +223,12 @@ describe('2FA / TOTP', () => {
     });
 
     it('returns 400 when 2FA is not enabled', async () => {
-      // Register a fresh user who has no 2FA
-      const regRes = await app.inject({
-        method: 'POST',
-        url: '/v1/users/register',
-        payload: { email: `totp-no2fa-${Date.now()}@test.com`, password: 'Password123!' },
-      });
+      // Seed a fresh user who has no 2FA set up
+      const freshUser = await seedTestUser();
       const loginRes = await app.inject({
         method: 'POST',
         url: '/v1/auth/login',
-        payload: { email: regRes.json().email, password: 'Password123!' },
+        payload: { email: freshUser.user.email, password: freshUser.password },
       });
       const token = loginRes.json().accessToken as string;
 

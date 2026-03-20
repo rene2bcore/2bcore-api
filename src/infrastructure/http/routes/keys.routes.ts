@@ -34,6 +34,7 @@ const ApiKeyMeta = {
     createdAt: { type: 'string', format: 'date-time' },
     lastUsedAt: { type: ['string', 'null'], format: 'date-time' },
     revokedAt: { type: ['string', 'null'], format: 'date-time' },
+    rateLimit: { type: ['integer', 'null'], description: 'Requests per minute; null = global default' },
   },
   required: ['id', 'name', 'prefix', 'scopes', 'isActive', 'createdAt'],
 };
@@ -61,6 +62,7 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
             ...ScopesProperty,
             default: [],
           },
+          rateLimit: { type: 'integer', minimum: 1, maximum: 10000, description: 'Custom rate limit (requests per minute). Omit to use the global default.' },
         },
       },
       response: {
@@ -96,15 +98,26 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
     schema: {
       tags: ['API Keys'],
       summary: 'List API keys',
-      description: 'List all API keys for the authenticated user. Raw keys are never returned. Requires `keys:read` scope when using an API key.',
+      description: 'Paginated list of all API keys for the authenticated user. Raw keys are never returned. Requires `keys:read` scope when using an API key.',
       security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      },
       response: {
         200: {
           type: 'object',
           properties: {
             data: { type: 'array', items: ApiKeyMeta },
+            total: { type: 'integer' },
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            totalPages: { type: 'integer' },
           },
-          required: ['data'],
+          required: ['data', 'total', 'page', 'limit', 'totalPages'],
         },
         401: ErrorResponse,
         403: ErrorResponse,
@@ -113,8 +126,9 @@ export async function keysRoutes(fastify: FastifyInstance, opts: KeysRoutesOptio
     preHandler: [verifyAuth, requireScope('keys:read')],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
-      const keys = await listApiKeysUseCase.execute(userId);
-      return reply.status(HTTP_STATUS.OK).send({ data: keys });
+      const { page = 1, limit = 20 } = request.query as { page?: number; limit?: number };
+      const result = await listApiKeysUseCase.execute(userId, { page, limit: Math.min(limit, 100) });
+      return reply.status(HTTP_STATUS.OK).send(result);
     },
   });
 

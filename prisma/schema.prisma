@@ -76,6 +76,7 @@ model ApiKey {
   lastUsedAt  DateTime? @map("last_used_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   revokedAt   DateTime? @map("revoked_at")
+  rateLimit   Int?      @map("rate_limit") // requests per minute; null = use global default
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

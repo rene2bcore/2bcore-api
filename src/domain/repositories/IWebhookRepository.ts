@@ -24,10 +24,21 @@ export interface CreateDeliveryInput {
   success: boolean;
 }
 
+export interface FindEndpointsByUserIdOptions {
+  page: number;
+  limit: number;
+}
+
+export interface WebhookEndpointPage {
+  data: WebhookEndpoint[];
+  total: number;
+}
+
 export interface IWebhookRepository {
   // Endpoints
   findEndpointById(id: string): Promise<WebhookEndpoint | null>;
-  findEndpointsByUserId(userId: string): Promise<WebhookEndpoint[]>;
+  findEndpointsByUserId(userId: string, options?: FindEndpointsByUserIdOptions): Promise<WebhookEndpoint[]>;
+  findEndpointsByUserIdPaged(userId: string, options: FindEndpointsByUserIdOptions): Promise<WebhookEndpointPage>;
   findActiveEndpointsForEvent(userId: string, event: string): Promise<WebhookEndpoint[]>;
   createEndpoint(input: CreateWebhookEndpointInput): Promise<WebhookEndpoint>;
   updateEndpoint(id: string, input: UpdateWebhookEndpointInput): Promise<WebhookEndpoint>;

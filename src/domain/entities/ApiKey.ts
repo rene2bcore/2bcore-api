@@ -9,6 +9,7 @@ export interface ApiKey {
   lastUsedAt: Date | null;
   createdAt: Date;
   revokedAt: Date | null;
+  rateLimit: number | null; // requests per minute; null = use global default
 }
 
 export interface ApiKeyPublic {
@@ -21,6 +22,7 @@ export interface ApiKeyPublic {
   lastUsedAt: Date | null;
   createdAt: Date;
   revokedAt: Date | null;
+  rateLimit: number | null;
 }
 
 export function toPublicApiKey(key: ApiKey): ApiKeyPublic {
@@ -34,5 +36,6 @@ export function toPublicApiKey(key: ApiKey): ApiKeyPublic {
     lastUsedAt: key.lastUsedAt,
     createdAt: key.createdAt,
     revokedAt: key.revokedAt,
+    rateLimit: key.rateLimit,
   };
 }

@@ -8,12 +8,14 @@ describe('Auth routes', () => {
   let app: TestApp;
   let active: SeedUserResult;
   let inactive: SeedUserResult;
+  let unverified: SeedUserResult;
 
   beforeAll(async () => {
     app = await createTestApp();
-    [active, inactive] = await Promise.all([
+    [active, inactive, unverified] = await Promise.all([
       seedTestUser(),
       seedTestUser({ isActive: false }),
+      seedTestUser({ emailVerified: false }),
     ]);
   });
 
@@ -113,6 +115,16 @@ describe('Auth routes', () => {
         payload: { email: inactive.user.email, password: inactive.password },
       });
       expect(res.statusCode).toBe(401);
+    });
+
+    it('returns 403 AUTH_007 for unverified email', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: unverified.user.email, password: unverified.password },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe('AUTH_007');
     });
 
     it('creates a USER_LOGIN audit log entry in the DB on success', async () => {

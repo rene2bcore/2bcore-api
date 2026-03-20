@@ -37,10 +37,10 @@ describe('GetAiUsageUseCase', () => {
     const result = await useCase.execute('user1', defaultQuery);
 
     expect(result.data).toHaveLength(2);
-    expect(result.pagination.page).toBe(1);
-    expect(result.pagination.limit).toBe(20);
-    expect(result.pagination.total).toBe(2);
-    expect(result.pagination.totalPages).toBe(1);
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(20);
+    expect(result.total).toBe(2);
+    expect(result.totalPages).toBe(1);
   });
 
   it('calculates totalPages correctly for multi-page results', async () => {
@@ -49,7 +49,7 @@ describe('GetAiUsageUseCase', () => {
 
     const result = await useCase.execute('user1', { page: 1, limit: 10 });
 
-    expect(result.pagination.totalPages).toBe(5);
+    expect(result.totalPages).toBe(5);
   });
 
   it('computes summary totals across returned page', async () => {
@@ -89,7 +89,7 @@ describe('GetAiUsageUseCase', () => {
 
     expect(result.data).toHaveLength(0);
     expect(result.summary).toEqual({ totalInputTokens: 0, totalOutputTokens: 0, totalTokens: 0, totalCostUsd: 0 });
-    expect(result.pagination.totalPages).toBe(0);
+    expect(result.totalPages).toBe(0);
   });
 
   it('passes from/to date filters to the repository', async () => {

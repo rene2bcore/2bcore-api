@@ -4,12 +4,10 @@ import { UserPublic, toPublicUser } from '../../../domain/entities/User.js';
 
 export interface UserPublicPage {
   data: UserPublic[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export class ListUsersUseCase {
@@ -21,7 +19,10 @@ export class ListUsersUseCase {
 
     return {
       data: data.map(toPublicUser),
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 }

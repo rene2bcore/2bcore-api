@@ -123,15 +123,26 @@ export async function webhookRoutes(fastify: FastifyInstance, opts: WebhookRoute
     schema: {
       tags: ['Webhooks'],
       summary: 'List webhook endpoints',
-      description: 'List all registered webhook endpoints for the authenticated user. Secrets are never returned after creation. JWT required.',
+      description: 'Paginated list of all registered webhook endpoints for the authenticated user. Secrets are never returned after creation. JWT required.',
       security: [{ BearerAuth: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      },
       response: {
         200: {
           type: 'object',
           properties: {
             data: { type: 'array', items: EndpointPublic },
+            total: { type: 'integer' },
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            totalPages: { type: 'integer' },
           },
-          required: ['data'],
+          required: ['data', 'total', 'page', 'limit', 'totalPages'],
         },
         401: ErrorResponse,
       },
@@ -139,9 +150,11 @@ export async function webhookRoutes(fastify: FastifyInstance, opts: WebhookRoute
     preHandler: [verifyJWT],
     handler: async (request, reply) => {
       const userId = request.user!.sub;
-      const endpoints = await listEndpointsUseCase.execute(userId);
+      const { page = 1, limit = 20 } = request.query as { page?: number; limit?: number };
+      const result = await listEndpointsUseCase.execute(userId, { page, limit: Math.min(limit, 100) });
       return reply.status(HTTP_STATUS.OK).send({
-        data: endpoints.map((ep) => ({
+        ...result,
+        data: result.data.map((ep) => ({
           ...ep,
           createdAt: ep.createdAt instanceof Date ? ep.createdAt.toISOString() : ep.createdAt,
           updatedAt: ep.updatedAt instanceof Date ? ep.updatedAt.toISOString() : ep.updatedAt,

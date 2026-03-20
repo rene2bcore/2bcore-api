@@ -11,6 +11,8 @@ const baseUser: User = {
   passwordHash: 'hash',
   role: 'USER',
   isActive: true,
+  emailVerified: true,
+  emailVerifiedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

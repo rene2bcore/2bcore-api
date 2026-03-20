@@ -24,6 +24,7 @@ export class CreateApiKeyUseCase {
       keyHash: hashed,
       prefix,
       scopes: input.scopes,
+      ...(input.rateLimit !== undefined && { rateLimit: input.rateLimit }),
     });
 
     await this.auditRepo.create({

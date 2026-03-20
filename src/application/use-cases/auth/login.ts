@@ -3,7 +3,7 @@ import { IUserRepository } from '../../../domain/repositories/IUserRepository.js
 import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepository.js';
 import { ITotpRepository } from '../../../domain/repositories/ITotpRepository.js';
 import { AuthService, TokenPair } from '../../services/AuthService.js';
-import { InvalidCredentialsError, UnauthorizedError } from '../../../domain/errors/index.js';
+import { InvalidCredentialsError, UnauthorizedError, EmailNotVerifiedError } from '../../../domain/errors/index.js';
 import { LoginInput } from '../../dtos/auth.dto.js';
 
 export interface LoginContext {
@@ -46,6 +46,11 @@ export class LoginUseCase {
         metadata: { success: false, reason: 'invalid_password' },
       });
       throw new InvalidCredentialsError();
+    }
+
+    // Enforce email verification — must be verified before a full session is issued
+    if (!user.emailVerified) {
+      throw new EmailNotVerifiedError();
     }
 
     // Check if 2FA is enabled — if so, issue challenge token instead of full session

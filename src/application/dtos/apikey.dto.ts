@@ -8,6 +8,7 @@ export const CreateApiKeyInputSchema = z.object({
     .optional()
     .default([])
     .describe('Restrict key to specific scopes. Empty array = full access (wildcard).'),
+  rateLimit: z.number().int().min(1).max(10000).optional(),
 });
 
 export const CreateApiKeyOutputSchema = z.object({

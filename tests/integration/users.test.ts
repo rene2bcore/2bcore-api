@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestApp, closeTestApp, type TestApp } from './helpers/app.helper.js';
-import { seedTestUser, cleanupIntegrationData, TEST_EMAIL_DOMAIN } from './helpers/db.helper.js';
+import { seedTestUser, cleanupIntegrationData, verifyUserEmail, TEST_EMAIL_DOMAIN } from './helpers/db.helper.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── Test suite ───────────────────────────────────────────────────────────────
@@ -10,6 +10,18 @@ describe('Users routes', () => {
 
   async function register(email: string, password = 'SecureP@ss1') {
     return app.inject({ method: 'POST', url: '/v1/users', payload: { email, password } });
+  }
+
+  /** Register, verify email, then login — returns the access token. */
+  async function registerAndLogin(email: string, password = 'SecureP@ss1'): Promise<string> {
+    await register(email, password);
+    await verifyUserEmail(email);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { email, password },
+    });
+    return res.json().accessToken as string;
   }
 
   async function login(email: string, password = 'SecureP@ss1'): Promise<string> {
@@ -61,7 +73,7 @@ describe('Users routes', () => {
       expect(res.json()).not.toHaveProperty('passwordHash');
     });
 
-    it('allows login with registered credentials', async () => {
+    it('returns 403 AUTH_007 when logging in without email verification', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
       const password = 'SecureP@ss1';
 
@@ -70,6 +82,27 @@ describe('Users routes', () => {
         url: '/v1/users',
         payload: { email, password },
       });
+
+      const loginRes = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email, password },
+      });
+
+      expect(loginRes.statusCode).toBe(403);
+      expect(loginRes.json().code).toBe('AUTH_007');
+    });
+
+    it('allows login after email verification', async () => {
+      const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
+      const password = 'SecureP@ss1';
+
+      await app.inject({
+        method: 'POST',
+        url: '/v1/users',
+        payload: { email, password },
+      });
+      await verifyUserEmail(email);
 
       const loginRes = await app.inject({
         method: 'POST',
@@ -158,8 +191,7 @@ describe('Users routes', () => {
   describe('GET /v1/users/me', () => {
     it('returns 200 with the authenticated user profile', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'GET',
@@ -208,8 +240,7 @@ describe('Users routes', () => {
     it('returns 200 and updated email', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
       const newEmail = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'PATCH',
@@ -225,8 +256,7 @@ describe('Users routes', () => {
     it('allows login with updated email', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
       const newEmail = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       await app.inject({
         method: 'PATCH',
@@ -245,8 +275,7 @@ describe('Users routes', () => {
 
     it('returns 200 and allows login with new password', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'PATCH',
@@ -267,9 +296,8 @@ describe('Users routes', () => {
     it('returns 409 USR_001 when new email is already taken', async () => {
       const emailA = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
       const emailB = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(emailA);
       await register(emailB);
-      const token = await login(emailA);
+      const token = await registerAndLogin(emailA);
 
       const res = await app.inject({
         method: 'PATCH',
@@ -283,8 +311,7 @@ describe('Users routes', () => {
 
     it('returns 401 AUTH_001 when currentPassword is wrong', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'PATCH',
@@ -298,8 +325,7 @@ describe('Users routes', () => {
 
     it('returns 422 VAL_001 when newPassword is missing currentPassword', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'PATCH',
@@ -313,8 +339,7 @@ describe('Users routes', () => {
 
     it('returns 422 VAL_001 when body is empty', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'PATCH',
@@ -362,8 +387,7 @@ describe('Users routes', () => {
   describe('DELETE /v1/users/me', () => {
     it('returns 204 and deletes the account', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'DELETE',
@@ -376,8 +400,7 @@ describe('Users routes', () => {
 
     it('cannot login after deletion', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       await app.inject({
         method: 'DELETE',
@@ -396,8 +419,7 @@ describe('Users routes', () => {
 
     it('access token is revoked after deletion', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       await app.inject({
         method: 'DELETE',
@@ -416,8 +438,7 @@ describe('Users routes', () => {
 
     it('returns 401 AUTH_001 when password is wrong', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'DELETE',
@@ -431,8 +452,7 @@ describe('Users routes', () => {
 
     it('returns 422 VAL_001 when password is missing', async () => {
       const email = `inttest+${uuidv4()}${TEST_EMAIL_DOMAIN}`;
-      await register(email);
-      const token = await login(email);
+      const token = await registerAndLogin(email);
 
       const res = await app.inject({
         method: 'DELETE',

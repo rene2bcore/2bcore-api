@@ -28,7 +28,10 @@ export class GetAllAiUsageUseCase {
 
     return {
       data,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
       summary: { ...summary, totalCostUsd: Number(summary.totalCostUsd.toFixed(6)) },
     };
   }

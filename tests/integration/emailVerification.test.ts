@@ -80,17 +80,17 @@ describe('Email verification and password reset routes', () => {
       expect(res.statusCode).toBe(204);
     });
 
-    it('returns 400 AUTH_007 on invalid token', async () => {
+    it('returns 400 AUTH_008 on invalid token', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/v1/auth/verify-email',
         payload: { token: 'a'.repeat(64) },
       });
       expect(res.statusCode).toBe(400);
-      expect(res.json().code).toBe('AUTH_007');
+      expect(res.json().code).toBe('AUTH_008');
     });
 
-    it('returns 400 AUTH_007 on already-used token', async () => {
+    it('returns 400 AUTH_008 on already-used token', async () => {
       const email = `inttest+verify2@2bcore.test`;
       emailService.clear();
       await register(email);
@@ -102,7 +102,7 @@ describe('Email verification and password reset routes', () => {
       // Use it again
       const res = await app.inject({ method: 'POST', url: '/v1/auth/verify-email', payload: { token } });
       expect(res.statusCode).toBe(400);
-      expect(res.json().code).toBe('AUTH_007');
+      expect(res.json().code).toBe('AUTH_008');
     });
 
     it('returns 422 VAL_001 when token is missing', async () => {
@@ -231,17 +231,17 @@ describe('Email verification and password reset routes', () => {
       expect(loginRes.statusCode).toBe(200);
     });
 
-    it('returns 400 AUTH_007 on invalid reset token', async () => {
+    it('returns 400 AUTH_008 on invalid reset token', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/v1/auth/reset-password',
         payload: { token: 'b'.repeat(64), password: 'NewPass1!' },
       });
       expect(res.statusCode).toBe(400);
-      expect(res.json().code).toBe('AUTH_007');
+      expect(res.json().code).toBe('AUTH_008');
     });
 
-    it('returns 400 AUTH_007 when token is used twice', async () => {
+    it('returns 400 AUTH_008 when token is used twice', async () => {
       const email = `inttest+reset2@2bcore.test`;
       await register(email);
 
@@ -252,7 +252,7 @@ describe('Email verification and password reset routes', () => {
       await app.inject({ method: 'POST', url: '/v1/auth/reset-password', payload: { token: resetToken, password: 'NewPass1!' } });
       const res = await app.inject({ method: 'POST', url: '/v1/auth/reset-password', payload: { token: resetToken, password: 'NewPass2!' } });
       expect(res.statusCode).toBe(400);
-      expect(res.json().code).toBe('AUTH_007');
+      expect(res.json().code).toBe('AUTH_008');
     });
 
     it('returns 422 VAL_001 when password does not meet complexity requirements', async () => {

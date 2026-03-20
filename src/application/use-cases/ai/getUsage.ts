@@ -4,12 +4,10 @@ import { AiUsageLog } from '../../../domain/entities/AiUsageLog.js';
 
 export interface AiUsagePage {
   data: AiUsageLog[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
   summary: {
     totalInputTokens: number;
     totalOutputTokens: number;
@@ -43,7 +41,10 @@ export class GetAiUsageUseCase {
 
     return {
       data,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
       summary: {
         ...summary,
         totalCostUsd: Number(summary.totalCostUsd.toFixed(6)),

@@ -31,7 +31,8 @@ export class ResetPasswordUseCase {
     const passwordHash = await bcrypt.hash(newPassword, env.BCRYPT_ROUNDS);
 
     await this.passwordResetRepo.markUsed(record.id);
-    await this.userRepo.update(record.userId, { passwordHash });
+    // Also verify email — if user received the reset link, email ownership is proven
+    await this.userRepo.update(record.userId, { passwordHash, emailVerified: true, emailVerifiedAt: new Date() });
 
     // Revoke all sessions — password change invalidates all existing sessions
     await this.authService.revokeRefreshToken(record.userId);

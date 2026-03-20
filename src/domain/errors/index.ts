@@ -81,9 +81,9 @@ export class UserAlreadyExistsError extends DomainError {
   }
 }
 
-export class EmailNotVerifiedError extends UnauthorizedError {
+export class EmailNotVerifiedError extends DomainError {
   constructor() {
-    super('Email address has not been verified', ERROR_CODES.EMAIL_NOT_VERIFIED);
+    super('Email address not verified', ERROR_CODES.EMAIL_VERIFICATION_REQUIRED, HTTP_STATUS.FORBIDDEN);
   }
 }
 

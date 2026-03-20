@@ -25,6 +25,7 @@ describe('CreateApiKeyUseCase', () => {
         lastUsedAt: null,
         createdAt: new Date('2026-01-01'),
         revokedAt: null,
+        rateLimit: null,
       } satisfies ApiKey),
       revoke: vi.fn(),
       updateLastUsed: vi.fn(),
